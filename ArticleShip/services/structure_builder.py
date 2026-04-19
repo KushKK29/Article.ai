@@ -70,11 +70,11 @@ Schema:
 """
 
     try:
-      response = await asyncio.to_thread(_generate_structure_sync, prompt)
+        response = await asyncio.to_thread(_generate_structure_sync, prompt)
 
         # Parse JSON string from LLM
         content_str = response.text
         return json.loads(content_str)
-        
+
     except Exception as e:
         return {"error": str(e), "message": "Failed to generate structure response."}
