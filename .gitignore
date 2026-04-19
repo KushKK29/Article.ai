@@ -1,0 +1,47 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Backend env and secrets
+ArticleShip/.env
+ArticleShip/.env.*
+!ArticleShip/.env.example
+
+# Frontend (Next.js)
+Frontend/node_modules/
+Frontend/.next/
+Frontend/out/
+Frontend/.turbo/
+Frontend/.vercel/
+Frontend/npm-debug.log*
+Frontend/yarn-debug.log*
+Frontend/yarn-error.log*
+Frontend/pnpm-debug.log*
+
+# Frontend env and secrets
+Frontend/.env
+Frontend/.env.*
+!Frontend/.env.example
+
+# Logs / temp
+*.log
+tmp/
+temp/
