@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -9,14 +10,7 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
-async def generate_seo_keywords(topic: str) -> dict:
-    """
-    RAG-style SEO keyword generator.
-    1. Retrieval: DuckDuckGo search for real-world signal.
-    2. Generation: Gemini generates structured keywords from topic + context.
-    """
-
-    # --- 1. Retrieval Phase ---
+def _retrieve_context_sync(topic: str) -> str:
     retrieved_context_snippets = []
     try:
         ddgs = DDGS()
@@ -29,7 +23,29 @@ async def generate_seo_keywords(topic: str) -> dict:
         print(f"DuckDuckGo search failed: {e}")
         retrieved_context_snippets.append("No live search context available.")
 
-    search_context = "\n".join(retrieved_context_snippets)
+    return "\n".join(retrieved_context_snippets)
+
+
+def _generate_keywords_sync(prompt: str):
+    return client.models.generate_content(
+        model="gemini-3-flash-preview",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            response_mime_type="application/json",
+        ),
+    )
+
+
+async def generate_seo_keywords(topic: str) -> dict:
+    """
+    RAG-style SEO keyword generator.
+    1. Retrieval: DuckDuckGo search for real-world signal.
+    2. Generation: Gemini generates structured keywords from topic + context.
+    """
+
+    # --- 1. Retrieval Phase ---
+    search_context = await asyncio.to_thread(_retrieve_context_sync, topic)
 
     # --- 2. Augmented Generation Phase ---
     # NOTE: Any { } inside an f-string that are NOT variable placeholders
@@ -63,14 +79,7 @@ Required JSON schema:
 
     # --- 3. Gemini API Call ---
     try:
-        response = client.models.generate_content(
-            model="gemini-3-flash-preview",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.3,           # Low temp for structured/factual output
-                response_mime_type="application/json",
-            ),
-        )
+        response = await asyncio.to_thread(_generate_keywords_sync, prompt)
         return json.loads(response.text)
 
     except json.JSONDecodeError as e:

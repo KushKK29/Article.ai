@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FALLBACK_BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const PRODUCTION_BACKEND_BASE_URL = "https://article-ai-fs42.onrender.com";
 
 function backendArticlesUrl() {
-  const base = (process.env.BACKEND_BASE_URL ?? FALLBACK_BACKEND_BASE_URL).replace(/\/+$/, "");
+  const fallbackBase = process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_BASE_URL : LOCAL_BACKEND_BASE_URL;
+  const base = (process.env.BACKEND_BASE_URL ?? fallbackBase).replace(/\/+$/, "");
   return `${base}/api/v1/articles`;
 }
 

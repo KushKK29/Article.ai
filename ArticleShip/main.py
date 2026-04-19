@@ -18,6 +18,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+@app.get("/", tags=["Health"])
+async def root_health():
+    return {"status": "ok", "service": "ArticleShip API"}
+
+
+@app.get("/health", tags=["Health"])
+async def health_check():
+    return {"status": "ok"}
+
 class TopicRequest(BaseModel):
     topic: str
 

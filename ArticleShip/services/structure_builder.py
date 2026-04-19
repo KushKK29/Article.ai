@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -9,6 +10,16 @@ load_dotenv()
 
 # We expect GEMINI_API_KEY from .env
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+
+def _generate_structure_sync(prompt: str):
+  return client.models.generate_content(
+    model='gemini-3-flash-preview',
+    contents=prompt,
+    config=types.GenerateContentConfig(
+      response_mime_type="application/json",
+    ),
+  )
 
 async def build_article_structure(topic: str, seo_data: dict) -> dict:
     """
@@ -59,13 +70,7 @@ Schema:
 """
 
     try:
-        response = client.models.generate_content(
-            model='gemini-3-flash-preview',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            ),
-        )
+      response = await asyncio.to_thread(_generate_structure_sync, prompt)
 
         # Parse JSON string from LLM
         content_str = response.text

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ContentBlock } from "@/lib/types";
 
-const FALLBACK_BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const PRODUCTION_BACKEND_BASE_URL = "https://article-ai-fs42.onrender.com";
 const HYBRID_ENDPOINT_PATH = "/api/v1/generate_full_article_hybrid_html";
 
 function getBackendEndpointUrl() {
   const configuredBase =
-    process.env.BACKEND_BASE_URL ?? process.env.BACKEND_API_URL ?? FALLBACK_BACKEND_BASE_URL;
+    process.env.BACKEND_BASE_URL ??
+    process.env.BACKEND_API_URL ??
+    (process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_BASE_URL : LOCAL_BACKEND_BASE_URL);
   const normalizedBase = configuredBase.replace(/\/+$/, "");
   return `${normalizedBase}${HYBRID_ENDPOINT_PATH}`;
 }
