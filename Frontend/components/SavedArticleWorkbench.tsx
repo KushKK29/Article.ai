@@ -55,6 +55,14 @@ function applyCommand(command: string, value?: string) {
   document.execCommand(command, false, value);
 }
 
+function ToolbarIcon({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-4 w-4 items-center justify-center" aria-hidden="true" title={label}>
+      {children}
+    </span>
+  );
+}
+
 export default function SavedArticleWorkbench({ article, onSave, onPublish, onDelete }: WorkbenchProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorViewportRef = useRef<HTMLDivElement | null>(null);
@@ -289,6 +297,8 @@ export default function SavedArticleWorkbench({ article, onSave, onPublish, onDe
   };
 
   const toolbarButtonClass = "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
+  const toolbarIconButtonClass = "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
+  const toolbarGroupClass = "flex flex-wrap items-center gap-2";
 
   useLayoutEffect(() => {
     if (!selectedImage) return;
@@ -348,49 +358,225 @@ export default function SavedArticleWorkbench({ article, onSave, onPublish, onDe
           </div>
         </div>
 
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Text Formatting</p>
-            <p className="text-[11px] text-slate-400">Select text first, then apply a style.</p>
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.25)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Text Formatting</p>
+              <p className="mt-1 text-[11px] text-slate-400">Select text first, then apply a style.</p>
+            </div>
+            <p className="text-[11px] text-slate-400">Formatting updates the live editor content.</p>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => applyCommand("bold")} className={toolbarButtonClass}>Bold</button>
-              <button type="button" onClick={() => applyCommand("italic")} className={toolbarButtonClass}>Italic</button>
-              <button type="button" onClick={() => applyCommand("underline")} className={toolbarButtonClass}>Underline</button>
-              <button type="button" onClick={() => applyCommand("formatBlock", "h2")} className={toolbarButtonClass}>H2</button>
-              <button type="button" onClick={() => applyCommand("formatBlock", "h3")} className={toolbarButtonClass}>H3</button>
-              <button type="button" onClick={() => applyCommand("formatBlock", "h4")} className={toolbarButtonClass}>H4</button>
-              <button type="button" onClick={() => applyCommand("formatBlock", "p")} className={toolbarButtonClass}>P</button>
-              <button type="button" onClick={() => applyCommand("insertUnorderedList")} className={toolbarButtonClass}>Bullet</button>
-              <button type="button" onClick={() => applyCommand("insertOrderedList")} className={toolbarButtonClass}>Numbered</button>
-              <button type="button" onClick={handleInsertLink} className={toolbarButtonClass}>Link</button>
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm">
+              <button type="button" onClick={() => applyCommand("undo")} className={toolbarIconButtonClass} aria-label="Undo">
+                <ToolbarIcon label="Undo">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                    <path d="M7.5 7H3V2.5" />
+                    <path d="M3.25 7.25A7 7 0 1 1 5.5 15" />
+                  </svg>
+                </ToolbarIcon>
+                Undo
+              </button>
+              <button type="button" onClick={() => applyCommand("redo")} className={toolbarIconButtonClass} aria-label="Redo">
+                <ToolbarIcon label="Redo">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                    <path d="M12.5 7H17V2.5" />
+                    <path d="M16.75 7.25A7 7 0 1 0 14.5 15" />
+                  </svg>
+                </ToolbarIcon>
+                Redo
+              </button>
+              <button type="button" onClick={() => document.execCommand("copy")} className={toolbarIconButtonClass} aria-label="Copy">
+                <ToolbarIcon label="Copy">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                    <rect x="7" y="7" width="8" height="8" rx="1.5" />
+                    <rect x="4" y="4" width="8" height="8" rx="1.5" />
+                  </svg>
+                </ToolbarIcon>
+                Copy
+              </button>
+              <button type="button" onClick={() => document.execCommand("paste")} className={toolbarIconButtonClass} aria-label="Paste">
+                <ToolbarIcon label="Paste">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                    <path d="M7 3.5h6a1 1 0 0 1 1 1V6h-8V4.5a1 1 0 0 1 1-1Z" />
+                    <rect x="5" y="6" width="10" height="10" rx="1.5" />
+                  </svg>
+                </ToolbarIcon>
+                Paste
+              </button>
+              <select
+                value="p"
+                onChange={(event) => {
+                  applyCommand("formatBlock", event.target.value);
+                  event.currentTarget.value = "p";
+                }}
+                className="min-w-[130px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm"
+                aria-label="Block format"
+              >
+                <option value="p">Paragraph</option>
+                <option value="h2">Heading 2</option>
+                <option value="h3">Heading 3</option>
+                <option value="h4">Heading 4</option>
+              </select>
             </div>
 
-            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
-              Color
-              <input type="color" value={fontColor} onChange={(event) => {
-                setFontColor(event.target.value);
-                document.execCommand("styleWithCSS", false, "true");
-                applyCommand("foreColor", event.target.value);
-              }} className="h-8 w-9 rounded border border-slate-300 bg-white p-1" />
-            </label>
+            <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white/90 p-2 shadow-sm">
+              <div className={toolbarGroupClass}>
+                <button type="button" onClick={() => applyCommand("bold")} className={toolbarIconButtonClass} aria-label="Bold">
+                  <ToolbarIcon label="Bold">
+                    <span className="text-sm font-bold">B</span>
+                  </ToolbarIcon>
+                  Bold
+                </button>
+                <button type="button" onClick={() => applyCommand("italic")} className={toolbarIconButtonClass} aria-label="Italic">
+                  <ToolbarIcon label="Italic">
+                    <span className="text-sm italic font-semibold">I</span>
+                  </ToolbarIcon>
+                  Italic
+                </button>
+                <button type="button" onClick={() => applyCommand("underline")} className={toolbarIconButtonClass} aria-label="Underline">
+                  <ToolbarIcon label="Underline">
+                    <span className="text-sm font-semibold underline">U</span>
+                  </ToolbarIcon>
+                  Underline
+                </button>
+              </div>
 
-            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
-              Size
-              <select value={fontSize} onChange={(event) => {
-                setFontSize(event.target.value);
-                wrapSelectionWithStyle({ fontSize: `${event.target.value}px` });
-              }} className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs">
-                <option value="14">14</option>
-                <option value="16">16</option>
-                <option value="18">18</option>
-                <option value="20">20</option>
-                <option value="24">24</option>
-                <option value="28">28</option>
-              </select>
-            </label>
+              <div className={toolbarGroupClass}>
+                <button type="button" onClick={() => applyCommand("insertUnorderedList")} className={toolbarIconButtonClass} aria-label="Bullet list">
+                  <ToolbarIcon label="Bullet list">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path d="M5 5.25A1.25 1.25 0 1 1 3.75 4 1.25 1.25 0 0 1 5 5.25Zm0 5.75A1.25 1.25 0 1 1 3.75 9.75 1.25 1.25 0 0 1 5 11Zm0 5.75A1.25 1.25 0 1 1 3.75 15.5 1.25 1.25 0 0 1 5 16.75ZM8 4h8v1.5H8V4Zm0 5.5h8V11H8V9.5Zm0 5.5h8v1.5H8V15Z" />
+                    </svg>
+                  </ToolbarIcon>
+                  Bullet
+                </button>
+                <button type="button" onClick={() => applyCommand("insertOrderedList")} className={toolbarIconButtonClass} aria-label="Numbered list">
+                  <ToolbarIcon label="Numbered list">
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path d="M4 4.25h1.1V3.5h.8V6H4v-.7h1.1v-.35H4V4.25Zm0 5.25h1.1v-.75h.8v2.25H4v-.7h1.1v-.35H4V9.5Zm0 5.25h1.1V14h.8v2.25H4v-.7h1.1v-.35H4v-.5Z" />
+                      <path d="M8 4h8v1.5H8V4Zm0 5.5h8V11H8V9.5Zm0 5.5h8v1.5H8V15Z" />
+                    </svg>
+                  </ToolbarIcon>
+                  Numbered
+                </button>
+                <button type="button" onClick={() => applyCommand("outdent")} className={toolbarIconButtonClass} aria-label="Decrease indent">
+                  <ToolbarIcon label="Decrease indent">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M8 5h8M8 10h8M8 15h8" />
+                      <path d="M5 7.5 2.5 10 5 12.5" />
+                    </svg>
+                  </ToolbarIcon>
+                  Outdent
+                </button>
+                <button type="button" onClick={() => applyCommand("indent")} className={toolbarIconButtonClass} aria-label="Increase indent">
+                  <ToolbarIcon label="Increase indent">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M8 5h8M8 10h8M8 15h8" />
+                      <path d="m5 7.5 2.5 2.5L5 12.5" />
+                    </svg>
+                  </ToolbarIcon>
+                  Indent
+                </button>
+              </div>
+
+              <div className={toolbarGroupClass}>
+                <button type="button" onClick={() => applyCommand("justifyLeft")} className={toolbarIconButtonClass} aria-label="Align left">
+                  <ToolbarIcon label="Align left">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M3 4h14M3 8h10M3 12h14M3 16h8" />
+                    </svg>
+                  </ToolbarIcon>
+                </button>
+                <button type="button" onClick={() => applyCommand("justifyCenter")} className={toolbarIconButtonClass} aria-label="Align center">
+                  <ToolbarIcon label="Align center">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M4 4h12M6 8h8M4 12h12M7 16h6" />
+                    </svg>
+                  </ToolbarIcon>
+                </button>
+                <button type="button" onClick={() => applyCommand("justifyRight")} className={toolbarIconButtonClass} aria-label="Align right">
+                  <ToolbarIcon label="Align right">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M3 4h14M7 8h10M3 12h14M9 16h8" />
+                    </svg>
+                  </ToolbarIcon>
+                </button>
+                <button type="button" onClick={() => applyCommand("justifyFull")} className={toolbarIconButtonClass} aria-label="Justify">
+                  <ToolbarIcon label="Justify">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M3 4h14M3 8h14M3 12h14M3 16h14" />
+                    </svg>
+                  </ToolbarIcon>
+                </button>
+              </div>
+
+              <div className={toolbarGroupClass}>
+                <button type="button" onClick={handleInsertLink} className={toolbarIconButtonClass} aria-label="Insert link">
+                  <ToolbarIcon label="Insert link">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M8.2 11.8 11.8 8.2" />
+                      <path d="M7 13a3 3 0 0 1 0-4.2l1-1a3 3 0 1 1 4.2 4.2l-.5.5" />
+                      <path d="M13 7a3 3 0 0 1 0 4.2l-1 1a3 3 0 1 1-4.2-4.2l.5-.5" />
+                    </svg>
+                  </ToolbarIcon>
+                  Link
+                </button>
+                <button type="button" onClick={() => applyCommand("unlink")} className={toolbarIconButtonClass} aria-label="Remove link">
+                  <ToolbarIcon label="Remove link">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="m4 4 12 12" />
+                      <path d="M8.2 11.8 11.8 8.2" />
+                      <path d="M7 13a3 3 0 0 1 0-4.2l1-1a3 3 0 0 1 3.9-.3" />
+                    </svg>
+                  </ToolbarIcon>
+                  Unlink
+                </button>
+                <button type="button" onClick={() => applyCommand("removeFormat")} className={toolbarIconButtonClass} aria-label="Clear formatting">
+                  <ToolbarIcon label="Clear formatting">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                      <path d="M5 5h10M8 5l-2 10M11 5 9 15" />
+                      <path d="m4 16 12-12" />
+                    </svg>
+                  </ToolbarIcon>
+                  Clear
+                </button>
+              </div>
+
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                Color
+                <input
+                  type="color"
+                  value={fontColor}
+                  onChange={(event) => {
+                    setFontColor(event.target.value);
+                    document.execCommand("styleWithCSS", false, "true");
+                    applyCommand("foreColor", event.target.value);
+                  }}
+                  className="h-8 w-9 rounded border border-slate-300 bg-white p-1"
+                />
+              </label>
+
+              <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm">
+                Size
+                <select
+                  value={fontSize}
+                  onChange={(event) => {
+                    setFontSize(event.target.value);
+                    wrapSelectionWithStyle({ fontSize: `${event.target.value}px` });
+                  }}
+                  className="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs"
+                >
+                  <option value="14">14</option>
+                  <option value="16">16</option>
+                  <option value="18">18</option>
+                  <option value="20">20</option>
+                  <option value="24">24</option>
+                  <option value="28">28</option>
+                </select>
+              </label>
+            </div>
           </div>
         </div>
 

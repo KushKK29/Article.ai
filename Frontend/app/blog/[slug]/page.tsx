@@ -9,6 +9,13 @@ type PublishedArticle = {
   status?: string;
   publishedAt?: string | null;
   payload?: {
+    keywords?: {
+      primary_keyword?: string;
+      secondary_keywords?: string[];
+      long_tail_keywords?: string[];
+      lsi_keywords?: string[];
+      search_intent?: string;
+    };
     content?: string;
     images?: Array<{
       heading?: string;
@@ -25,6 +32,42 @@ type PublishedArticle = {
     };
   };
 };
+
+function compactText(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function normalizePublishedArticleHtml(html: string) {
+  if (!html) return "";
+
+  const shellMatch = html.match(/^\s*<article[^>]*class="[^"]*article-shell[^"]*"[^>]*>([\s\S]*)<\/article>\s*$/i);
+  const innerHtml = shellMatch?.[1] ?? html;
+
+  // Keep a single source of truth for the title: the page header above the article HTML.
+  return innerHtml.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>\s*/gi, "");
+}
+
+function buildPublishedArticleDescription(article: PublishedArticle, title: string) {
+  const keywordPool = [
+    article.payload?.keywords?.primary_keyword,
+    ...(article.payload?.keywords?.secondary_keywords ?? []),
+    ...(article.payload?.keywords?.long_tail_keywords ?? []),
+    ...(article.payload?.keywords?.lsi_keywords ?? [])
+  ]
+    .map((keyword) => compactText(keyword || ""))
+    .filter(Boolean);
+
+  const keywords = Array.from(new Set(keywordPool)).slice(0, 3);
+  const normalizedTitle = compactText(title).toLowerCase();
+  const topic = compactText(article.topic || "");
+  const subject = topic && topic.toLowerCase() !== normalizedTitle ? topic : "modern software teams";
+
+  if (keywords.length > 0) {
+    return compactText(`Practical insights on ${keywords.join(", ")} for ${subject}.`);
+  }
+
+  return compactText(`Practical guidance on AI-assisted software engineering workflows for ${subject}.`);
+}
 
 async function getArticle(slug: string): Promise<PublishedArticle | null> {
   const response = await fetch(getBackendUrl(`/api/v1/articles?slug=${encodeURIComponent(slug)}`), {
@@ -49,7 +92,7 @@ export async function generateMetadata({
   }
 
   const title = article.payload?.structure?.h1 || article.payload?.meta?.title || article.topic;
-  const description = article.payload?.meta?.meta_description || `Read ${title} on ArticleShip.`;
+  const description = buildPublishedArticleDescription(article, title) || article.payload?.meta?.meta_description || `Read ${title} on ArticleShip.`;
 
   return {
     title,
@@ -75,8 +118,8 @@ export default async function BlogArticlePage({
   }
 
   const title = article.payload?.structure?.h1 || article.payload?.meta?.title || article.topic;
-  const description = article.payload?.meta?.meta_description || "";
-  const content = article.payload?.content || "";
+  const description = buildPublishedArticleDescription(article, title) || article.payload?.meta?.meta_description || `Read ${title} on ArticleShip.`;
+  const content = normalizePublishedArticleHtml(article.payload?.content || "");
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-10 md:px-8">
@@ -89,9 +132,7 @@ export default async function BlogArticlePage({
         </h1>
         {description ? <p className="mb-8 max-w-3xl text-base text-slate-600">{description}</p> : null}
 
-        <div className="article-html rounded-2xl border border-slate-200 bg-white p-5 md:p-8">
-          <div dangerouslySetInnerHTML={{ __html: content }} />
-        </div>
+        <div className="article-html mt-8" dangerouslySetInnerHTML={{ __html: content }} />
 
         {article.publishedAt ? (
           <p className="mt-6 text-xs text-slate-500">
