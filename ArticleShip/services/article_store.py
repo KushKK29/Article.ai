@@ -1,5 +1,7 @@
 import os
 import re
+import zlib
+from base64 import b64decode, b64encode
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import uuid4
@@ -9,6 +11,9 @@ from pymongo import MongoClient
 
 
 load_dotenv()
+
+
+_CONTENT_COMPRESSION_PREFIX = "zlib64:"
 
 
 def _get_collection():
@@ -83,8 +88,65 @@ def _generate_unique_slug(collection, base_title: str, current_id: str | None = 
     return candidate
 
 
+def _compress_content(value: str) -> str:
+    raw = value.encode("utf-8")
+    compressed = zlib.compress(raw, level=9)
+
+    # Skip compression if it does not save space.
+    if len(compressed) >= len(raw):
+        return value
+
+    encoded = b64encode(compressed).decode("ascii")
+    return f"{_CONTENT_COMPRESSION_PREFIX}{encoded}"
+
+
+def _decompress_content(value: Any) -> str:
+    if not isinstance(value, str):
+        return str(value or "")
+
+    if not value.startswith(_CONTENT_COMPRESSION_PREFIX):
+        return value
+
+    encoded = value[len(_CONTENT_COMPRESSION_PREFIX):]
+    try:
+        compressed = b64decode(encoded)
+        return zlib.decompress(compressed).decode("utf-8")
+    except Exception:
+        # If decode fails, return the original string to avoid hard-read failures.
+        return value
+
+
+def _encode_payload_for_storage(payload: Dict[str, Any]) -> Dict[str, Any]:
+    encoded_payload = dict(payload or {})
+    content = encoded_payload.get("content")
+
+    if isinstance(content, str) and content:
+        encoded_payload["content"] = _compress_content(content)
+
+    return encoded_payload
+
+
+def _decode_payload_from_storage(payload: Dict[str, Any]) -> Dict[str, Any]:
+    decoded_payload = dict(payload or {})
+
+    if "content" in decoded_payload:
+        decoded_payload["content"] = _decompress_content(decoded_payload.get("content"))
+
+    return decoded_payload
+
+
+def _decode_article_from_storage(article: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    if not article:
+        return None
+
+    decoded_article = dict(article)
+    decoded_article["payload"] = _decode_payload_from_storage(decoded_article.get("payload", {}) or {})
+    return decoded_article
+
+
 def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     collection = _get_collection()
+    stored_payload = _encode_payload_for_storage(payload)
     article = {
         "id": uuid4().hex,
         "topic": topic,
@@ -93,16 +155,17 @@ def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "draft",
         "slug": None,
         "publishedAt": None,
-        "payload": payload,
+        "payload": stored_payload,
     }
     collection.insert_one(article)
     article.pop("_id", None)
-    return article
+    return _decode_article_from_storage(article) or article
 
 
 def get_article_by_id(article_id: str) -> Dict[str, Any] | None:
     collection = _get_collection()
-    return collection.find_one({"id": article_id}, {"_id": 0})
+    article = collection.find_one({"id": article_id}, {"_id": 0})
+    return _decode_article_from_storage(article)
 
 
 def list_articles(slug: str | None = None, status: str | None = None) -> List[Dict[str, Any]]:
@@ -113,13 +176,16 @@ def list_articles(slug: str | None = None, status: str | None = None) -> List[Di
     if status:
         query["status"] = status
     docs = list(collection.find(query, {"_id": 0}).sort("createdAt", -1))
-    return docs
+    return [
+        _decode_article_from_storage(doc) or doc
+        for doc in docs
+    ]
 
 
 def get_article_by_slug(slug: str) -> Dict[str, Any] | None:
     collection = _get_collection()
     article = collection.find_one({"slug": slug}, {"_id": 0})
-    return article
+    return _decode_article_from_storage(article)
 
 
 def delete_article(article_id: str) -> bool:
@@ -130,7 +196,7 @@ def delete_article(article_id: str) -> bool:
 
 def publish_article(article_id: str) -> Dict[str, Any]:
     collection = _get_collection()
-    article = collection.find_one({"id": article_id}, {"_id": 0})
+    article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
     if not article:
         raise ValueError("Article not found")
 
@@ -164,7 +230,7 @@ def publish_article(article_id: str) -> Dict[str, Any]:
         },
     )
 
-    updated_article = collection.find_one({"id": article_id}, {"_id": 0})
+    updated_article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
     if not updated_article:
         raise ValueError("Unable to load published article")
     return updated_article
@@ -172,18 +238,19 @@ def publish_article(article_id: str) -> Dict[str, Any]:
 
 def update_article(article_id: str, topic: str | None, payload: Dict[str, Any]) -> Dict[str, Any]:
     collection = _get_collection()
-    article = collection.find_one({"id": article_id}, {"_id": 0})
+    article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
     if not article:
         raise ValueError("Article not found")
 
     current_topic = topic.strip() if isinstance(topic, str) and topic.strip() else str(article.get("topic", "")).strip()
     updated_at = _utc_now_iso()
+    stored_payload = _encode_payload_for_storage(payload)
     collection.update_one(
         {"id": article_id},
         {
             "$set": {
                 "topic": current_topic,
-                "payload": payload,
+                "payload": stored_payload,
                 "status": "draft",
                 "slug": None,
                 "publishedAt": None,
@@ -193,7 +260,7 @@ def update_article(article_id: str, topic: str | None, payload: Dict[str, Any]) 
         },
     )
 
-    updated_article = collection.find_one({"id": article_id}, {"_id": 0})
+    updated_article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
     if not updated_article:
         raise ValueError("Unable to load updated article")
     return updated_article
