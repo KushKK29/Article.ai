@@ -23,32 +23,307 @@ BANNED_PHRASES = [
 ]
 
 
+def _contains_cjk(text: str) -> bool:
+    return bool(__import__("re").search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _normalize_search_subject(topic: str) -> str:
+    subject = (topic or "").strip()
+    subject = __import__("re").sub(r"^\s*(why|how|what|when|where|who|which|is|are|can|should|does|do)\s+", "", subject, flags=__import__("re").I)
+    subject = __import__("re").sub(r"\s*\([^)]*\)\s*", " ", subject)
+    subject = __import__("re").sub(r"\s+", " ", subject).strip(" .,-")
+    return subject or topic
+
+
+def _core_search_terms(topic: str) -> str:
+    subject = _normalize_search_subject(topic)
+    tokens = [token for token in __import__("re").split(r"[^a-zA-Z0-9]+", subject.lower()) if token]
+    stop_words = {
+        "the", "and", "or", "for", "with", "in", "on", "at", "to", "of", "a", "an",
+        "why", "how", "what", "when", "where", "who", "which", "is", "are", "can", "should",
+        "does", "do", "real", "case", "cases", "study", "studies", "user", "complaints", "costs",
+        "cost", "costing", "production", "fail", "fails", "failure", "failures", "builders", "builder",
+    }
+    filtered = [token for token in tokens if token not in stop_words]
+    if not filtered:
+        return subject
+    return " ".join(filtered[:6])
+
+
 def _retrieve_article_context_sync(topic: str) -> str:
     snippets: list[str] = []
 
     try:
         ddgs = DDGS()
-        queries = [
-            f"{topic} real world case study",
-            f"{topic} implementation pitfalls",
-            f"{topic} best practices 2025"
+        topic_lower = topic.lower()
+        search_subject = _normalize_search_subject(topic)
+        core_terms = _core_search_terms(topic)
+        seen_urls: set[str] = set()
+
+        # Step 1: Intent detection
+        if any(word in topic_lower for word in ["error", "bug", "fix", "issue"]):
+            category = "debug"
+        elif any(word in topic_lower for word in ["ai", "llm", "model", "copilot", "cursor", "gpt"]):
+            category = "ai"
+        elif any(word in topic_lower for word in ["seo", "adsense", "blog", "ranking", "traffic"]):
+            category = "seo"
+        elif any(word in topic_lower for word in ["history", "war", "ancient", "revolution", "empire"]):
+            category = "history"
+        elif any(word in topic_lower for word in ["movie", "film", "series", "celebrity", "music"]):
+            category = "entertainment"
+        elif any(word in topic_lower for word in ["who is", "biography", "life", "early life"]):
+            category = "biography"
+        elif any(word in topic_lower for word in ["python", "javascript", "typescript", "rust", "golang", "code", "dev", "engineer"]):
+            category = "engineering"
+        else:
+            category = "general"
+
+        # Step 2: Category-based queries
+        if category == "debug":
+            queries = [
+                f"{search_subject} fix solution explained",
+                f"{search_subject} stackoverflow answer",
+                f"{search_subject} github issue resolution",
+                f"{search_subject} root cause analysis",
+            ]
+
+        elif category == "ai":
+            queries = [
+                f"{search_subject} real user complaints",
+                f"{search_subject} reddit discussion",
+                f"{search_subject} case study failures",
+                f"{search_subject} production issues",
+                f"{search_subject} vs manual development",
+            ]
+
+        elif category == "engineering":
+            queries = [
+                f"{search_subject} real world implementation problems",
+                f"{search_subject} production case study results",
+                f"{search_subject} best practices pitfalls 2025",
+                f"{search_subject} stackoverflow discussion",
+                f"{search_subject} github experience lessons",
+            ]
+
+        elif category == "seo":
+            queries = [
+                f"{search_subject} ranking strategy results",
+                f"{search_subject} google algorithm guidelines",
+                f"{search_subject} case study traffic growth",
+                f"{search_subject} common mistakes penalties",
+            ]
+
+        elif category == "history":
+            queries = [
+                f"{search_subject} causes and effects analysis",
+                f"{search_subject} timeline key events",
+                f"{search_subject} historical significance",
+                f"{search_subject} scholarly perspective",
+            ]
+
+        elif category == "entertainment":
+            queries = [
+                f"{search_subject} review critical reception",
+                f"{search_subject} audience reaction discussion",
+                f"{search_subject} performance analysis",
+            ]
+
+        elif category == "biography":
+            queries = [
+                f"{search_subject} biography career achievements",
+                f"{search_subject} early life background",
+                f"{search_subject} impact legacy",
+            ]
+
+        else:  # general
+            queries = [
+                f"{search_subject} real world benefits drawbacks",
+                f"{search_subject} expert analysis opinion",
+                f"{search_subject} research findings data",
+            ]
+        
+        queries += [
+            f"site:reddit.com {search_subject}",
+            f"site:news.ycombinator.com {search_subject}",
+        ]
+
+        # Step 3: Domain scoring
+        def score_domain(url: str) -> int:
+            url = url.lower()
+            if any(d in url for d in ["wikipedia.org", "britannica.com"]):
+                return 5
+            if any(d in url for d in [
+                "reddit.com", "news.ycombinator.com",
+                "stackoverflow.com", "github.com",
+                "martinfowler.com", "acm.org", "ieee.org"
+            ]):
+                return 4
+            if any(d in url for d in [
+                "medium.com", "dev.to", "substack.com", "infoq.com",
+                "smashingmagazine.com", "thenewstack.io",
+                "techcrunch.com", "wired.com", "theguardian.com",
+                "bbc.com", "nytimes.com"
+            ]):
+                return 3
+            return 1
+
+        temp_results = []
+        blocked_domains = [
+            "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
+            "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
+            "cnblogs.com", "36kr.com"
         ]
 
         for query in queries:
-            results = list(ddgs.text(query, max_results=2))
-            for result in results:
-                body = str(result.get("body", "") or "").strip()
-                if body:
-                    snippets.append(body)
+            try:
+                results = list(ddgs.text(query, max_results=6))
+
+                for result in results:
+                    body = str(result.get("body", "") or "").strip()
+                    title = str(result.get("title", "") or "").strip()
+                    url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
+
+                    if not (body or title):
+                        continue
+                    if url in seen_urls:
+                        continue
+                    if any(d in url.lower() for d in [
+                        "pinterest", "instagram", "facebook",
+                        "tiktok", "amazon", "ebay", "quora"
+                    ]):
+                        continue
+                    if any(domain in url.lower() for domain in blocked_domains):
+                        continue
+                    if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
+                        continue
+
+                    seen_urls.add(url)
+                    temp_results.append({
+                        "score": score_domain(url),
+                        "content": (
+                            f"TITLE: {title}\n"
+                            f"URL: {url}\n"
+                            f"INSIGHT: {body[:500]}"
+                        )
+                    })
+
+                    if len(temp_results) >= 20:
+                        break
+
+                if len(temp_results) >= 20:
+                    break
+
+            except Exception:
+                continue
+
+        # Sort by authority score
+        temp_results.sort(key=lambda x: x["score"], reverse=True)
+
+        # One result per domain for diversity
+        final = []
+        used_domains: set[str] = set()
+
+        for item in temp_results:
+            url = item["content"].split("URL: ")[1].split("\n")[0]
+            domain = url.split("/")[2] if "://" in url else url
+
+            if domain in used_domains:
+                continue
+
+            used_domains.add(domain)
+            final.append(item["content"])
+
+            if len(final) >= 10:
+                break
+
+        snippets = final
 
     except Exception as error:
         logger.warning("Article retrieval failed: %s", error)
+    
+    fallback_queries = [
+        f"Detailed analysis of topic: {topic} ",
+    ]
+    # Add high-signal sources
+    fallback_queries += [
+        f"site:reddit.com {topic}",
+        f"site:news.ycombinator.com {topic}",
+    ]
+
+    if category in ["history", "general", "biography"]:
+        fallback_queries += [
+            f"site:wikipedia.org {topic}",
+            f"site:britannica.com {topic}",
+        ]
+    
+    # Fallback
+    if not snippets:
+        try:
+            ddgs_fallback = DDGS()
+            count = 0
+
+            for query in fallback_queries:
+                results = list(ddgs_fallback.text(query, max_results=3))
+
+                for result in results:
+                    if count >= 10:
+                        break
+
+                    body = str(result.get("body", "") or "").strip()
+                    title = str(result.get("title", "") or "").strip()
+                    url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
+                    if not (body or title):
+                        continue
+                    if any(domain in url.lower() for domain in [
+                        "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
+                        "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
+                        "cnblogs.com", "36kr.com"
+                    ]):
+                        continue
+                    if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
+                        continue
+                    snippets.append(f"TITLE: {title}\nURL: {url}\nINSIGHT: {(body or title)[:500]}")
+                    count += 1
+
+                if count >= 10:
+                    break
+        except Exception:
+            pass
+
+    # Final fallback: one last broad query for AI/web topics before giving up.
+    if not snippets and ("ai" in topic_lower or "website" in topic_lower):
+        try:
+            ddgs_last_resort = DDGS()
+            for result in list(ddgs_last_resort.text(fallback_queries, max_results=6)):
+                body = str(result.get("body", "") or "").strip()
+                title = str(result.get("title", "") or "").strip()
+                url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
+
+                if url in seen_urls:
+                    continue
+                if any(domain in url.lower() for domain in blocked_domains):
+                    continue
+                if not (body or title):
+                    continue
+                if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
+                    continue
+
+                seen_urls.add(url)
+                snippets.append(
+                    f"TITLE: {title}\n"
+                    f"URL: {url}\n"
+                    f"INSIGHT: {(body or title or topic)[:300]}"
+                )
+
+                if len(snippets) >= 3:
+                    break
+        except Exception:
+            pass
 
     if not snippets:
-        return "No live search context available."
+        return f"No high-quality live context available for: {topic}"
 
-    unique_snippets = list(dict.fromkeys(snippets))
-    return "\n".join(unique_snippets[:6])
+    return "\n\n---\n\n".join(snippets)
 
 
 def build_prompt(topic: str, seo_data: dict, structure: dict,

@@ -1,10 +1,12 @@
+import asyncio
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
 from services.keyword_engine import generate_seo_keywords
 from services.structure_builder import build_article_structure
-from services.article_builder import generate_article_content
+from services.article_builder import generate_article_content, _retrieve_article_context_sync
 from services.content_mapper import parse_markdown_to_mapping
 from services.image_fetcher import embed_images_in_article
 from services.pipeline import run_pipeline
@@ -110,6 +112,28 @@ async def build_article(request: ArticleRequest):
             "article_markdown": content
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/article-context", tags=["Debug"])
+async def get_article_context(request: TopicRequest):
+    """
+    Returns the live retrieval context used by the article generator.
+    """
+    try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"DEBUG: Retrieving context for topic: {request.topic[:80]}")
+        context = await asyncio.to_thread(_retrieve_article_context_sync, request.topic)
+        logger.info(f"DEBUG: Retrieved context length: {len(context)}")
+        logger.info(f"DEBUG: Context starts with: {context[:100]}")
+        return {
+            "topic": request.topic,
+            "context": context,
+        }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"DEBUG: Exception in get_article_context: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/mapper", tags=["Content Mapper"])
