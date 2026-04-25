@@ -53,13 +53,12 @@ export default function TopicInput({
               return (
                 <li
                   key={step}
-                  className={`rounded-lg border px-3 py-2 ${
-                    isDone
+                  className={`rounded-lg border px-3 py-2 ${isDone
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                       : isActive
                         ? "border-sky-200 bg-sky-50 text-sky-700"
                         : "border-slate-200 bg-white text-slate-500"
-                  }`}
+                    }`}
                 >
                   {step}
                 </li>

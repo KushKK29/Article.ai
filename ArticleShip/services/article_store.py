@@ -53,20 +53,55 @@ def _article_title(article: Dict[str, Any]) -> str:
     )
 
 
-def _has_keywords(payload: Dict[str, Any]) -> bool:
-    keywords = payload.get("keywords", {}) or {}
+def _has_keywords(payload: Dict[str, Any], topic: str = "") -> bool:
+    keywords = payload.get("keywords", {}) or payload.get("seo_data", {}) or {}
     if not isinstance(keywords, dict):
-        return False
-    if str(keywords.get("primary_keyword", "")).strip():
+        keywords = {}
+
+    primary = str(keywords.get("primary_keyword", "") or "").strip()
+    if primary:
         return True
+
+    # Legacy payload fallback: early pipeline versions stored only meta.primary_keyword.
+    meta = payload.get("meta", {}) or {}
+    if isinstance(meta, dict) and str(meta.get("primary_keyword", "")).strip():
+        return True
+
     secondary = keywords.get("secondary_keywords") or []
     long_tail = keywords.get("long_tail_keywords") or []
     lsi = keywords.get("lsi_keywords") or []
-    return any([secondary, long_tail, lsi])
+    if any([secondary, long_tail, lsi]):
+        return True
+
+    # Last compatibility fallback: allow legacy articles with a meaningful title/topic.
+    structure = payload.get("structure", {}) or {}
+    h1 = str(structure.get("h1", "") or "").strip() if isinstance(structure, dict) else ""
+    meta_title = str(meta.get("title", "") or "").strip() if isinstance(meta, dict) else ""
+    topic_text = str(topic or "").strip()
+    return bool(h1 or meta_title or topic_text)
+
+
+def _flatten_block_content(blocks: Any) -> str:
+    if not isinstance(blocks, list):
+        return ""
+
+    parts: List[str] = []
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        text = str(block.get("content", "") or "").strip()
+        if text:
+            parts.append(text)
+
+    return "\n".join(parts)
 
 
 def _content_ready(payload: Dict[str, Any]) -> bool:
-    content = str(payload.get("content", ""))
+    content = str(payload.get("content", "") or "").strip()
+    if not content:
+        # Backward compatibility: older payloads may only persist block-level content.
+        content = _flatten_block_content(payload.get("blocks"))
+
     visible_length = len(_strip_html(content).strip())
     return visible_length >= 300
 
@@ -140,6 +175,8 @@ def _decode_article_from_storage(article: Dict[str, Any] | None) -> Dict[str, An
         return None
 
     decoded_article = dict(article)
+    raw_view_count = decoded_article.get("viewCount", 0)
+    decoded_article["viewCount"] = raw_view_count if isinstance(raw_view_count, int) and raw_view_count >= 0 else 0
     decoded_article["payload"] = _decode_payload_from_storage(decoded_article.get("payload", {}) or {})
     return decoded_article
 
@@ -155,6 +192,8 @@ def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         "status": "draft",
         "slug": None,
         "publishedAt": None,
+        "viewCount": 0,
+        "lastViewedAt": None,
         "payload": stored_payload,
     }
     collection.insert_one(article)
@@ -194,6 +233,23 @@ def delete_article(article_id: str) -> bool:
     return result.deleted_count > 0
 
 
+def track_article_view(article_id: str) -> Dict[str, Any]:
+    collection = _get_collection()
+    viewed_at = _utc_now_iso()
+    collection.update_one(
+        {"id": article_id},
+        {
+            "$inc": {"viewCount": 1},
+            "$set": {"lastViewedAt": viewed_at},
+        },
+    )
+
+    updated_article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
+    if not updated_article:
+        raise ValueError("Article not found")
+    return updated_article
+
+
 def publish_article(article_id: str) -> Dict[str, Any]:
     collection = _get_collection()
     article = _decode_article_from_storage(collection.find_one({"id": article_id}, {"_id": 0}))
@@ -204,11 +260,11 @@ def publish_article(article_id: str) -> Dict[str, Any]:
     title = _article_title(article)
 
     if not title:
-        raise ValueError("Article not ready for publishing")
+        raise ValueError("Article not ready: missing title")
     if not _content_ready(payload):
-        raise ValueError("Article not ready for publishing")
-    if not _has_keywords(payload):
-        raise ValueError("Article not ready for publishing")
+        raise ValueError("Article not ready: add at least 300 characters of content")
+    if not _has_keywords(payload, str(article.get("topic", "") or "")):
+        raise ValueError("Article not ready: missing SEO keywords")
 
     current_slug = str(article.get("slug") or "").strip()
     if current_slug and article.get("status") == "published":

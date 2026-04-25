@@ -63,6 +63,28 @@ WRITING RULES:
 2. HOOK (critical)
    The first paragraph under H1 MUST open with a scroll-stopping statement — a bold claim, a surprising stat, or a direct challenge to a common assumption. Do NOT open with "The conversation surrounding..." or any slow-burn scene-setting. Get to the point in sentence one.
 
+2b. TL;DR SUMMARY BLOCK (new — addresses bounce rate and featured snippet gap)
+   Immediately after the opening hook paragraph and before the first H2, insert a structured summary block with horizontal rule separators. Format exactly as follows:
+
+   ---
+   **Quick verdict before you read:**
+   - ✅ Worked: [2–4 specific tasks where the subject genuinely succeeded]
+   - ❌ Failed: [2–4 specific failure areas covered in the article]
+   - 💰 Real cost: [one specific financial or time cost from the article]
+   - ⏱️ Honest time saving: [overall productivity verdict in one line]
+   - 🎯 Who should read this: [one sentence describing the ideal reader]
+   ---
+
+   Rules:
+   - Every bullet must reference something actually covered in the article body. Do not invent outcomes that don't appear in the content.
+   - The ❌ Failed bullets must be specific failure modes, not generic warnings.
+     Bad: "❌ Failed: complex tasks"
+     Good: "❌ Failed: cross-file state management, OAuth retry logic, multi-tenant query isolation"
+   - Keep every line under 12 words. This is a skimmable block, not a paragraph.
+   - This block directly targets Google featured snippets for review-intent queries. The structured format (emoji labels + bullet list) is the exact pattern Google pulls for "X review 2025" and "is X worth it" searches.
+   - Do not add headers like "## Summary" above it. The bold label and horizontal rules are sufficient. A heading would create a duplicate TOC entry.
+   - This block is positioned AFTER the hook but BEFORE the first H2. Hook paragraph stays first to capture attention. TL;DR converts that attention into a commitment to read.
+
 3. HUMAN-FIRST WRITING (critical — addresses Google Helpful Content penalty risk)
    Write every paragraph as if a domain expert is speaking to a peer, not as if keywords are being placed into slots.
    - The opening paragraph must read as a genuine, opinionated point of view — not a keyword brief.

@@ -10,7 +10,7 @@ from services.image_fetcher import embed_images_in_article
 from services.pipeline import run_pipeline
 from services.html_converter import convert_final_payload_to_html
 from services.hybrid_html_converter import convert_final_payload_to_hybrid_html
-from services.article_store import save_article, list_articles, get_article_by_slug, get_article_by_id, publish_article, update_article, delete_article
+from services.article_store import save_article, list_articles, get_article_by_slug, get_article_by_id, publish_article, update_article, delete_article, track_article_view
 
 app = FastAPI(
     title="ArticleShip API",
@@ -266,6 +266,19 @@ async def publish_saved_article(article_id: str):
         return {"ok": True, "article": article}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/articles/{article_id}/track-view", tags=["Article Store"])
+async def track_saved_article_view(article_id: str):
+    """
+    Increments article view count for analytics tracking.
+    """
+    try:
+        article = track_article_view(article_id)
+        return {"ok": True, "article": article}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

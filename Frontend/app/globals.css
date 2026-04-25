@@ -157,6 +157,48 @@ h4 {
   text-align: center;
 }
 
+.prose-custom h2 {
+  font-size: 1.25rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #1c1917;
+  padding-top: 0.7rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.prose-custom h3 {
+  font-size: 1.05rem;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #292524;
+  margin: 0.85rem 0 0.35rem;
+}
+
+.prose-custom p {
+  color: #44403c;
+  line-height: 1.75;
+}
+
+.prose-custom ul,
+.prose-custom ol {
+  margin: 0.25rem 0 0.8rem;
+  padding-left: 1.25rem;
+}
+
+.prose-custom li {
+  margin: 0.2rem 0;
+}
+
+.prose-custom blockquote {
+  background: #f5f5f4;
+  border-left: 4px solid #0f766e;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #57534e;
+  margin: 1rem 0;
+  padding: 1rem 1.1rem;
+  font-style: italic;
+}
+
 .skeleton {
   position: relative;
   overflow: hidden;

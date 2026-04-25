@@ -96,8 +96,15 @@ export default function HomePage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [activeTab, setActiveTab] = useState<"dashboard" | "articles">("dashboard");
   const [savedArticles, setSavedArticles] = useState<SavedArticle[]>([]);
+  const [savedArticlesLoading, setSavedArticlesLoading] = useState(true);
+  const [savedArticlesFetchFailed, setSavedArticlesFetchFailed] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const publishedArticles = useMemo(
+    () => savedArticles.filter((article) => article.status === "published"),
+    [savedArticles]
+  );
 
   const addToast = (type: ToastType, title: string, description?: string) => {
     const id = crypto.randomUUID();
@@ -112,9 +119,15 @@ export default function HomePage() {
   };
 
   const fetchSavedArticles = async () => {
+    setSavedArticlesLoading(true);
+    setSavedArticlesFetchFailed(false);
+
     try {
       const response = await fetch("/api/save-article", { cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) {
+        throw new Error("Could not load saved articles");
+      }
+
       const data = await response.json();
       setSavedArticles(data.articles ?? []);
       setSelectedArticleId((currentSelected) => {
@@ -124,7 +137,10 @@ export default function HomePage() {
           : data.articles?.[0]?.id ?? null;
       });
     } catch {
+      setSavedArticlesFetchFailed(true);
       addToast("error", "Could not load saved articles");
+    } finally {
+      setSavedArticlesLoading(false);
     }
   };
 
@@ -369,22 +385,20 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("dashboard")}
-                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${
-                  activeTab === "dashboard"
+                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "dashboard"
                     ? "bg-slate-900 text-white"
                     : "bg-white text-slate-700 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 Dashboard
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("articles")}
-                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${
-                  activeTab === "articles"
+                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "articles"
                     ? "bg-slate-900 text-white"
                     : "bg-white text-slate-700 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 My Articles
               </button>
@@ -413,7 +427,15 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {savedArticles.length === 0 ? (
+              {savedArticlesLoading ? (
+                <div className="space-y-3">
+                  <div className="skeleton h-16 w-full rounded-xl" />
+                  <div className="skeleton h-16 w-full rounded-xl" />
+                  <div className="skeleton h-16 w-full rounded-xl" />
+                </div>
+              ) : savedArticlesFetchFailed ? (
+                <p className="text-sm text-rose-600">Failed to load articles. Please refresh and try again.</p>
+              ) : savedArticles.length === 0 ? (
                 <p className="text-sm text-slate-500">No saved articles yet.</p>
               ) : (
                 <ul className="space-y-3 xl:max-h-[calc(100vh-320px)] xl:overflow-y-auto xl:pr-1">
@@ -422,9 +444,8 @@ export default function HomePage() {
                     return (
                       <li
                         key={article.id}
-                        className={`rounded-xl border bg-white p-3 transition ${
-                          isSelected ? "border-sky-300 ring-2 ring-sky-100" : "border-slate-200"
-                        }`}
+                        className={`rounded-xl border bg-white p-3 transition ${isSelected ? "border-sky-300 ring-2 ring-sky-100" : "border-slate-200"
+                          }`}
                       >
                         <button
                           type="button"
@@ -434,16 +455,18 @@ export default function HomePage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold text-slate-800">{article.topic}</p>
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
-                                article.status === "published"
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${article.status === "published"
                                   ? "bg-emerald-100 text-emerald-700"
                                   : "bg-amber-100 text-amber-700"
-                              }`}
+                                }`}
                             >
                               {article.status || "draft"}
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-slate-500">{new Date(article.createdAt).toLocaleString()}</p>
+                          {article.status === "published" ? (
+                            <p className="mt-1 text-xs font-medium text-slate-600">Views: {(article.viewCount ?? 0).toLocaleString()}</p>
+                          ) : null}
                           {article.slug ? (
                             <a
                               href={`/blog/${article.slug}`}
@@ -532,6 +555,68 @@ export default function HomePage() {
                       className="article-html max-h-[700px] overflow-auto rounded-xl border border-slate-200 bg-white p-4"
                       dangerouslySetInnerHTML={{ __html: content }}
                     />
+                  )}
+                </section>
+
+                <section className="glass-card rounded-2xl p-5 md:p-6 xl:col-span-2">
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <h2 className="text-xl font-semibold text-slatebrand">Published Article Analytics</h2>
+                      <p className="text-sm text-slate-500">Track views and remove published articles directly.</p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700">Total published: {publishedArticles.length}</p>
+                  </div>
+
+                  {savedArticlesLoading ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="skeleton h-24 w-full rounded-xl" />
+                      <div className="skeleton h-24 w-full rounded-xl" />
+                    </div>
+                  ) : savedArticlesFetchFailed ? (
+                    <p className="text-sm text-rose-600">Analytics unavailable until articles load successfully.</p>
+                  ) : publishedArticles.length === 0 ? (
+                    <p className="text-sm text-slate-500">No published articles yet.</p>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {publishedArticles
+                        .slice()
+                        .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
+                        .map((article) => (
+                          <article key={article.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <h3 className="text-base font-semibold text-slate-900">{article.topic}</h3>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Published {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "-"}
+                                </p>
+                                <p className="mt-2 text-sm font-semibold text-slate-700">
+                                  {(article.viewCount ?? 0).toLocaleString()} views
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const confirmed = window.confirm(`Delete published article \"${article.topic}\"? This cannot be undone.`);
+                                  if (!confirmed) return;
+                                  void deleteArticle(article.id);
+                                }}
+                                className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                              >
+                                Delete
+                              </button>
+                            </div>
+
+                            {article.slug ? (
+                              <a
+                                href={`/blog/${article.slug}`}
+                                className="mt-3 inline-block text-xs font-semibold text-sky-700 underline underline-offset-2"
+                              >
+                                Open article
+                              </a>
+                            ) : null}
+                          </article>
+                        ))}
+                    </div>
                   )}
                 </section>
               </div>

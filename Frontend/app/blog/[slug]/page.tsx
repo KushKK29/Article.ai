@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getBackendUrl } from "@/lib/backend";
+import ArticleViewTracker from "@/components/ArticleViewTracker";
 
 type PublishedArticle = {
   id: string;
@@ -114,6 +115,67 @@ function buildPublishedArticleDescription(article: PublishedArticle, title: stri
   return compactText(`Practical guidance on AI-assisted software engineering workflows for ${subject}.`);
 }
 
+function stripHtml(value: string) {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function estimateReadingMinutes(contentHtml: string) {
+  const words = stripHtml(contentHtml).split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.ceil(words / 220));
+}
+
+function formatPublishedDate(value?: string | null) {
+  if (!value) return "Unpublished";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unpublished";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(date);
+}
+
+function formatCompactDate(value?: string | null) {
+  if (!value) return "Unpublished";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unpublished";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(date);
+}
+
+function normalizeImageSignature(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    return `${parsed.origin}${parsed.pathname}`.toLowerCase();
+  } catch {
+    return raw.split("?")[0].toLowerCase();
+  }
+}
+
+function extractImageSourcesFromHtml(html: string) {
+  const sources: string[] = [];
+  const regex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(html)) !== null) {
+    if (match[1]) {
+      sources.push(match[1]);
+    }
+  }
+
+  return sources;
+}
+
 async function getArticle(slug: string): Promise<PublishedArticle | null> {
   const response = await fetch(getBackendUrl(`/api/v1/articles?slug=${encodeURIComponent(slug)}`), {
     cache: "no-store"
@@ -187,101 +249,202 @@ export default async function BlogArticlePage({
   const content = normalizePublishedArticleHtml(article.payload?.content || "");
   const recentArticles = await getRecentArticles(slug);
   const tableOfContents = buildTableOfContents(article);
+  const readingTime = estimateReadingMinutes(content);
+  const publishedDate = formatPublishedDate(article.publishedAt);
+  const heroImage = article.payload?.images?.find((item) => !!item?.url) || null;
+  const heroSignature = normalizeImageSignature(heroImage?.url || "");
+  const contentImageSignatures = new Set(
+    extractImageSourcesFromHtml(content).map((item) => normalizeImageSignature(item))
+  );
+  const contentStartsWithImage = /^\s*(?:<figure[^>]*>\s*)?<img\b/i.test(content);
+  const shouldRenderHeroImage = Boolean(
+    heroImage?.url && !contentStartsWithImage && !contentImageSignatures.has(heroSignature)
+  );
+  const tags = [
+    article.payload?.keywords?.primary_keyword,
+    ...(article.payload?.keywords?.secondary_keywords ?? []).slice(0, 3)
+  ]
+    .map((item) => compactText(item || ""))
+    .filter(Boolean);
+
+  const recentPostFallbackImage = "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=900&h=500&fit=crop";
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-10 md:px-8 scroll-smooth">
-      <div className="grid gap-6 md:grid-cols-[300px_minmax(0,1fr)] md:items-start">
-        <aside className="glass-card rounded-3xl p-5 md:sticky md:top-8 md:max-h-[calc(100vh-4rem)] md:overflow-y-auto">
-          <div className="mb-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-700">Structure</p>
-            <h2 className="mt-2 text-xl font-bold tracking-tight text-slate-900">Jump to section</h2>
-          </div>
+    <section className="py-16 md:py-24 scroll-smooth">
+      <div className="mx-auto w-full max-w-6xl px-6">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
+          <main className="lg:col-span-8">
+            <article className="mb-16">
+              <ArticleViewTracker articleId={article.id} />
 
-          <nav className="space-y-1 text-sm">
-            {tableOfContents.length > 0 ? (
-              tableOfContents.map((item) => (
-                <a
-                  key={`${item.level}-${item.href}-${item.label}`}
-                  href={item.href}
-                  className={`block rounded-xl px-3 py-2 leading-6 text-slate-700 transition hover:bg-sky-50 hover:text-sky-800 ${
-                    item.level === 3 ? "pl-6 text-[13px]" : item.level === 4 ? "pl-9 text-[12px] text-slate-500" : "font-medium"
-                  }`}
-                >
-                  {item.label}
-                </a>
-              ))
-            ) : (
-              <p className="text-sm text-slate-500">No structure available for this article.</p>
-            )}
-          </nav>
-        </aside>
-
-        <div className="space-y-6">
-          <article className="glass-card rounded-3xl p-6 md:p-10">
-            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-sky-700">
-              Published Article
-            </p>
-            <h1 className="mb-4 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
-              {title}
-            </h1>
-            {description ? <p className="mb-8 max-w-3xl text-base text-slate-600">{description}</p> : null}
-
-            <div className="article-html mt-8" dangerouslySetInnerHTML={{ __html: content }} />
-
-            {article.publishedAt ? (
-              <p className="mt-6 text-xs text-slate-500">
-                Published {new Date(article.publishedAt).toLocaleString()}
-              </p>
-            ) : null}
-          </article>
-
-          {recentArticles.length > 0 ? (
-            <section className="glass-card rounded-3xl p-6 md:p-8">
-              <div className="mb-5 flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-700">
-                    Recent Articles
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-900">
-                    Recently published stories
-                  </h2>
+              <div className="mb-6">
+                <span className="mb-4 inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-teal-700">
+                  Featured
+                </span>
+                <h1 className="mb-3 text-balance text-3xl font-bold leading-tight text-stone-900 md:text-4xl">
+                  {title}
+                </h1>
+                {description ? (
+                  <p className="mb-4 text-base leading-relaxed text-stone-500">{description}</p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-3 text-sm text-stone-400">
+                  <span className="font-medium text-stone-600">By ArticleShip Editorial</span>
+                  <span>·</span>
+                  <time>{publishedDate}</time>
+                  <span>·</span>
+                  <span>{readingTime} min read</span>
                 </div>
-                <p className="text-sm text-slate-500">More live articles to explore</p>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                {recentArticles.map((recentArticle) => {
-                  const recentTitle =
-                    recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
-                  const summary =
-                    buildPublishedArticleDescription(recentArticle, recentTitle) ||
-                    recentArticle.payload?.meta?.meta_description ||
-                    `Read ${recentTitle} on ArticleShip.`;
+              {shouldRenderHeroImage && heroImage?.url ? (
+                <div className="mb-8 overflow-hidden rounded-xl border border-stone-200">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={heroImage.url}
+                    alt={heroImage.alt || title}
+                    className="h-64 w-full object-cover md:h-80"
+                    loading="lazy"
+                  />
+                </div>
+              ) : null}
 
-                  return (
-                    <Link
-                      key={recentArticle.id}
-                      href={`/blog/${recentArticle.slug}`}
-                      className="group rounded-2xl border border-slate-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-sky-300 hover:shadow-card"
+              <div className="article-html prose-custom space-y-5 text-base leading-relaxed text-stone-700" dangerouslySetInnerHTML={{ __html: content }} />
+
+              {tags.length > 0 ? (
+                <div className="mt-10 flex flex-wrap gap-2 border-t border-stone-200 pt-8">
+                  <span className="mr-2 self-center text-xs font-semibold uppercase tracking-wider text-stone-400">Tags:</span>
+                  {tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600"
                     >
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
-                        {recentArticle.publishedAt ? new Date(recentArticle.publishedAt).toLocaleDateString() : "Published"}
-                      </p>
-                      <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-900 transition group-hover:text-sky-700">
-                        {recentTitle}
-                      </h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{summary}</p>
-                      <span className="mt-4 inline-flex text-sm font-semibold text-sky-700 underline underline-offset-4">
-                        Read article
-                      </span>
-                    </Link>
-                  );
-                })}
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          </main>
+
+          <aside className="lg:col-span-4">
+            <div className="space-y-10 lg:sticky lg:top-8">
+              <div>
+                <h3 className="mb-5 border-b border-stone-200 pb-3 text-xs font-bold uppercase tracking-widest text-stone-400">
+                  Jump to section
+                </h3>
+                <nav className="space-y-2">
+                  {tableOfContents.length > 0 ? (
+                    tableOfContents
+                      .filter((item) => item.level === 2)
+                      .map((item) => (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          className="block border-l-2 border-transparent py-1 pl-3 text-sm text-stone-500 transition-colors hover:border-teal-600 hover:text-teal-700"
+                        >
+                          {item.label}
+                        </a>
+                      ))
+                  ) : (
+                    <p className="text-sm text-stone-500">No sections available.</p>
+                  )}
+                </nav>
               </div>
-            </section>
-          ) : null}
+
+              {/*
+              <div className="rounded-xl border border-stone-200 bg-white p-6">
+                <h3 className="mb-5 text-xs font-bold uppercase tracking-widest text-stone-400">Categories</h3>
+                <div className="space-y-2">
+                  {[
+                    { label: "AI & Machine Learning", count: 12 },
+                    { label: "No-Code / Low-Code", count: 8 },
+                    { label: "Software Architecture", count: 15 },
+                    { label: "Developer Tools", count: 10 },
+                    { label: "Career & Growth", count: 6 },
+                    { label: "Honest Reviews", count: 9 }
+                  ].map((category) => (
+                    <span
+                      key={category.label}
+                      className="flex items-center justify-between border-b border-stone-100 py-2 text-sm text-stone-600 last:border-0"
+                    >
+                      <span>{category.label}</span>
+                      <span className="rounded-full bg-stone-50 px-2 py-0.5 text-xs text-stone-400">{category.count}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              */}
+
+              {/*
+              <div className="rounded-xl border border-teal-100 bg-teal-50 p-6">
+                <h3 className="mb-2 text-sm font-bold text-stone-900">Stay in the loop</h3>
+                <p className="mb-4 text-sm leading-relaxed text-stone-500">
+                  Honest dev insights, no fluff. Delivered when there&apos;s something worth reading.
+                </p>
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  className="mb-3 w-full rounded-lg border border-teal-200 bg-white px-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-300"
+                />
+                <button className="w-full rounded-lg bg-teal-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-800">
+                  Subscribe
+                </button>
+              </div>
+              */}
+
+            </div>
+          </aside>
         </div>
+
+        {recentArticles.length > 0 ? (
+          <section className="mt-16 border-t border-stone-200 pt-12 md:pt-14">
+            <div className="mb-8 flex items-center justify-between gap-4">
+              <h2 className="text-3xl font-bold tracking-tight text-stone-900">Recently published</h2>
+              <span className="text-sm font-semibold text-teal-700">View all articles →</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+              {recentArticles.slice(0, 3).map((recentArticle) => {
+                const recentTitle =
+                  recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
+                const recentContent = normalizePublishedArticleHtml(recentArticle.payload?.content || "");
+                const recentSummary =
+                  recentArticle.payload?.meta?.meta_description || stripHtml(recentContent).slice(0, 140).trim() || "Read the full article for practical insights.";
+                const recentCategory = compactText(recentArticle.payload?.keywords?.primary_keyword || "AI Development") || "AI Development";
+                const recentImage = recentPostFallbackImage;
+                const recentReadMinutes = estimateReadingMinutes(recentContent);
+
+                return (
+                  <Link
+                    key={recentArticle.id}
+                    href={`/blog/${recentArticle.slug}`}
+                    className="group block"
+                  >
+                    <div className="mb-4 overflow-hidden rounded-xl border border-stone-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={recentImage}
+                        alt={recentTitle}
+                        className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                        loading="lazy"
+                      />
+                    </div>
+
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{recentCategory}</p>
+                    <h3 className="text-2xl font-bold leading-tight text-stone-900 transition-colors group-hover:text-teal-800">
+                      {recentTitle}
+                    </h3>
+                    <p className="mt-3 text-base leading-relaxed text-stone-500">{recentSummary}</p>
+                    <p className="mt-4 text-sm text-stone-400">
+                      {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </div>
-    </main>
+    </section>
   );
 }

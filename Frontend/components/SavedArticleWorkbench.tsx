@@ -22,6 +22,7 @@ export type SavedArticleRecord = {
   status?: "draft" | "published";
   slug?: string | null;
   publishedAt?: string | null;
+  viewCount?: number;
   payload: SavedArticlePayload;
 };
 

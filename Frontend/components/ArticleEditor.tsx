@@ -23,11 +23,11 @@ function highlightKeywords(text: string, words: string[]): string {
 export default function ArticleEditor({ blocks, setBlocks, keywords }: ArticleEditorProps) {
   const keywordPool = keywords
     ? [
-        keywords.primary_keyword,
-        ...keywords.secondary_keywords,
-        ...keywords.long_tail_keywords,
-        ...keywords.lsi_keywords
-      ]
+      keywords.primary_keyword,
+      ...keywords.secondary_keywords,
+      ...keywords.long_tail_keywords,
+      ...keywords.lsi_keywords
+    ]
     : [];
 
   const updateBlockContent = (index: number, content: string) => {
