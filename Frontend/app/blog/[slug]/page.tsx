@@ -299,7 +299,7 @@ export default async function BlogArticlePage({
 
   return (
     <section className="scroll-smooth pt-8 pb-3 md:pt-12 md:pb-5">
-      <div className="mx-auto w-full max-w-[1080px] px-3">
+      <div className="mx-auto w-full max-w-[1380px] px-3">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[300px_minmax(0,1fr)_280px] lg:gap-10 xl:gap-12">
           <aside className="order-2 hidden w-full lg:order-1 lg:block">
             <div className="space-y-6 lg:sticky lg:top-8">

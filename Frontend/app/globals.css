@@ -76,6 +76,7 @@ h4 {
 .article-html p {
   line-height: 1.75;
   color: #334155;
+  text-align: justify;
 }
 
 .article-html .content-list {
