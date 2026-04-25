@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from duckduckgo_search import DDGS
 
 load_dotenv()
 
@@ -22,7 +23,36 @@ BANNED_PHRASES = [
 ]
 
 
+def _retrieve_article_context_sync(topic: str) -> str:
+    snippets: list[str] = []
+
+    try:
+        ddgs = DDGS()
+        queries = [
+            f"{topic} real world case study",
+            f"{topic} implementation pitfalls",
+            f"{topic} best practices 2025"
+        ]
+
+        for query in queries:
+            results = list(ddgs.text(query, max_results=2))
+            for result in results:
+                body = str(result.get("body", "") or "").strip()
+                if body:
+                    snippets.append(body)
+
+    except Exception as error:
+        logger.warning("Article retrieval failed: %s", error)
+
+    if not snippets:
+        return "No live search context available."
+
+    unique_snippets = list(dict.fromkeys(snippets))
+    return "\n".join(unique_snippets[:6])
+
+
 def build_prompt(topic: str, seo_data: dict, structure: dict,
+                 search_context: str,
                  banned_phrases: list[str] = BANNED_PHRASES) -> str:
     primary_kw = seo_data.get("primary_keyword", "")
     search_intent = seo_data.get("search_intent", "Informational")
@@ -34,6 +64,9 @@ Your task: write a comprehensive, publication-ready article following the exact 
 
 ---
 TOPIC: "{topic}"
+
+SEARCH CONTEXT (live retrieval snippets):
+{search_context}
 
 CONTENT ANGLE — lead with this differentiation hook, do not ignore it:
 {seo_data.get('content_angle', '')}
@@ -253,6 +286,12 @@ WRITING RULES:
 26. CLOSING PARAGRAPH (non-negotiable)
     End the final content section (not the FAQ) with a single strong, opinionated paragraph that directly challenges the reader. No soft landings. No "only time will tell." Make a clear claim and defend it in 3–4 sentences.
 
+27. RETRIEVAL GROUNDING (required)
+    Use SEARCH CONTEXT to align examples, terminology, and framing with real-world discourse.
+    - Do not copy retrieved snippets verbatim.
+    - Do not invent named tools, benchmark figures, or claims that are unsupported by SEO data or retrieved context.
+    - If context is weak, stay general and avoid fabricated specifics.
+
 ---
 OUTPUT FORMAT — output in this exact order:
 1. The complete article in Markdown
@@ -274,7 +313,8 @@ async def generate_article_content(
     """
     Generate full article markdown from topic, SEO data, and locked structure.
     """
-    prompt = build_prompt(topic, seo_data, structure)
+    search_context = await asyncio.to_thread(_retrieve_article_context_sync, topic)
+    prompt = build_prompt(topic, seo_data, structure, search_context)
 
     try:
         response = await asyncio.to_thread(
