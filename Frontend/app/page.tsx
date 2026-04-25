@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import ArticleEditor from "@/components/ArticleEditor";
 import ImageGallery from "@/components/ImageGallery";
 import KeywordsPanel from "@/components/KeywordsPanel";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/types";
 
 const STEPS = ["Generating keywords", "Building structure", "Writing article", "Generating images"];
+const AUTOSAVE_INTERVAL_MS = 25000;
 
 type SavedArticle = SavedArticleRecord;
 
@@ -40,6 +42,26 @@ function SkeletonCard() {
         <div className="skeleton h-4 w-4/5 rounded" />
       </div>
     </div>
+  );
+}
+
+function Sparkline({ views }: { views: number }) {
+  const points = useMemo(() => {
+    if (views === 0) return "0,20 10,20 20,20 30,20 40,20 50,20 60,20";
+    let pts = "";
+    // pseudo-random generation based on views to look like a trend
+    for (let i = 0; i <= 6; i++) {
+      const mod = (views * (i + 1)) % 15;
+      const y = Math.max(2, 20 - mod - (views > 100 && i > 3 ? 5 : 0));
+      pts += `${i * 10},${y} `;
+    }
+    return pts.trim();
+  }, [views]);
+
+  return (
+    <svg viewBox="0 -5 60 30" className="h-6 w-16 overflow-visible text-emerald-500">
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -99,12 +121,66 @@ export default function HomePage() {
   const [savedArticlesLoading, setSavedArticlesLoading] = useState(true);
   const [savedArticlesFetchFailed, setSavedArticlesFetchFailed] = useState(false);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>("");
+  const [isPersistingDraft, setIsPersistingDraft] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const autosaveErrorAtRef = useRef(0);
+
+  const currentDraftPayload = useMemo(
+    () => ({
+      meta,
+      keywords,
+      structure,
+      content,
+      blocks,
+      images
+    }),
+    [meta, keywords, structure, content, blocks, images]
+  );
+
+  const currentSnapshot = useMemo(
+    () => JSON.stringify({ topic: topic.trim(), payload: currentDraftPayload }),
+    [topic, currentDraftPayload]
+  );
+
+  const canPersistDraft = topic.trim().length > 0 && blocks.length > 0;
+  const hasUnsavedChanges = canPersistDraft && currentSnapshot !== lastSavedSnapshot;
 
   const publishedArticles = useMemo(
     () => savedArticles.filter((article) => article.status === "published"),
     [savedArticles]
   );
+
+  const analyticsFunnel = useMemo(() => {
+    const totalDrafts = savedArticles.length - publishedArticles.length;
+    const publishedRatio = savedArticles.length > 0 ? Math.round((publishedArticles.length / savedArticles.length) * 100) : 0;
+    
+    let timeSum = 0;
+    let timeCount = 0;
+    const keywordCounts: Record<string, number> = {};
+
+    publishedArticles.forEach(a => {
+      if (a.createdAt && a.publishedAt) {
+        const diff = new Date(a.publishedAt).getTime() - new Date(a.createdAt).getTime();
+        if (diff > 0) {
+          timeSum += diff;
+          timeCount++;
+        }
+      }
+      const pk = (a.payload?.keywords as any)?.primary_keyword;
+      if (pk && typeof pk === "string") {
+        keywordCounts[pk] = (keywordCounts[pk] || 0) + (a.viewCount || 0);
+      }
+    });
+
+    const avgMs = timeCount > 0 ? timeSum / timeCount : 0;
+    const avgHours = Math.round(avgMs / (1000 * 60 * 60));
+    const avgPublishTimeText = avgHours > 24 ? `${Math.round(avgHours / 24)} days` : `${avgHours} hours`;
+    const topKeywords = Object.entries(keywordCounts).sort((a, b) => b[1] - a[1]).slice(0, 3);
+
+    return { totalDrafts, publishedRatio, avgPublishTimeText, topKeywords, timeCount };
+  }, [savedArticles, publishedArticles]);
 
   const addToast = (type: ToastType, title: string, description?: string) => {
     const id = crypto.randomUUID();
@@ -116,6 +192,23 @@ export default function HomePage() {
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const resetDraftComposer = () => {
+    setCurrentDraftId(null);
+    setLastSavedSnapshot("");
+    setTopic("");
+    setKeywords(null);
+    setStructure(null);
+    setMeta(null);
+    setContent("");
+    setImages([]);
+    setBlocks([]);
+  };
+
+  const confirmDiscardChanges = () => {
+    if (!hasUnsavedChanges) return true;
+    return window.confirm("You have unsaved changes. Leave this draft without saving?");
   };
 
   const fetchSavedArticles = async () => {
@@ -145,8 +238,123 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    void fetchSavedArticles();
+    void fetchSavedArticles().then(() => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const articleId = params.get("articleId");
+        if (articleId) {
+          setSelectedArticleId(articleId);
+          setActiveTab("dashboard");
+          // Remove query param without refreshing
+          window.history.replaceState({}, "", "/");
+        }
+      }
+    });
   }, []);
+
+  const persistCurrentDraft = useCallback(
+    async (source: "manual" | "autosave") => {
+      if (!canPersistDraft) {
+        if (source === "manual") {
+          addToast("error", "Nothing to save", "Generate and edit article first");
+        }
+        return false;
+      }
+
+      setIsPersistingDraft(true);
+
+      try {
+        const payload = {
+          topic,
+          payload: currentDraftPayload
+        };
+
+        let response: Response;
+
+        if (currentDraftId) {
+          response = await fetch(`/api/articles/${currentDraftId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.status === 404) {
+            response = await fetch("/api/save-article", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload)
+            });
+          }
+        } else {
+          response = await fetch("/api/save-article", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data?.detail || data?.error || "Save failed");
+        }
+
+        const nextId = data?.article?.id;
+        if (typeof nextId === "string" && nextId.length > 0) {
+          setCurrentDraftId(nextId);
+        }
+        setLastSavedSnapshot(currentSnapshot);
+
+        if (source === "manual") {
+          addToast("success", "Draft saved", "Stored in backend MongoDB as a draft");
+          await fetchSavedArticles();
+        }
+
+        return true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Could not save draft";
+
+        if (source === "manual") {
+          addToast("error", "Could not save article", message);
+        } else {
+          const now = Date.now();
+          if (now - autosaveErrorAtRef.current > 30000) {
+            addToast("error", "Autosave failed", "We could not save your latest changes.");
+            autosaveErrorAtRef.current = now;
+          }
+        }
+
+        return false;
+      } finally {
+        setIsPersistingDraft(false);
+      }
+    },
+    [addToast, canPersistDraft, currentDraftId, currentDraftPayload, currentSnapshot, fetchSavedArticles, topic]
+  );
+
+  useEffect(() => {
+    if (!hasUnsavedChanges || loading || isPersistingDraft) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      void persistCurrentDraft("autosave");
+    }, AUTOSAVE_INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [hasUnsavedChanges, isPersistingDraft, loading]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   const generate = async () => {
     if (!topic.trim()) {
@@ -192,36 +400,7 @@ export default function HomePage() {
   };
 
   const saveArticle = async () => {
-    if (!topic || blocks.length === 0) {
-      addToast("error", "Nothing to save", "Generate and edit article first");
-      return;
-    }
-
-    try {
-      const response = await fetch("/api/save-article", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          topic,
-          payload: {
-            meta,
-            keywords,
-            structure,
-            content,
-            blocks,
-            images
-          }
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error("Save API failed");
-      }
-      addToast("success", "Draft saved", "Stored in backend MongoDB as a draft");
-      await fetchSavedArticles();
-    } catch {
-      addToast("error", "Could not save article");
-    }
+    await persistCurrentDraft("manual");
   };
 
   const publishArticle = async (articleId: string) => {
@@ -279,6 +458,10 @@ export default function HomePage() {
 
       if (selectedArticleId === articleId) {
         setSelectedArticleId(null);
+      }
+      if (currentDraftId === articleId) {
+        setCurrentDraftId(null);
+        setLastSavedSnapshot("");
       }
       addToast("success", "Article deleted", "Removed from MongoDB and the editor list");
       await fetchSavedArticles();
@@ -384,7 +567,10 @@ export default function HomePage() {
             <nav className="space-y-2 text-sm">
               <button
                 type="button"
-                onClick={() => setActiveTab("dashboard")}
+                onClick={() => {
+                  if (activeTab !== "dashboard" && !confirmDiscardChanges()) return;
+                  setActiveTab("dashboard");
+                }}
                 className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "dashboard"
                     ? "bg-slate-900 text-white"
                     : "bg-white text-slate-700 hover:bg-slate-100"
@@ -394,7 +580,10 @@ export default function HomePage() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("articles")}
+                onClick={() => {
+                  if (activeTab !== "articles" && !confirmDiscardChanges()) return;
+                  setActiveTab("articles");
+                }}
                 className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "articles"
                     ? "bg-slate-900 text-white"
                     : "bg-white text-slate-700 hover:bg-slate-100"
@@ -402,6 +591,12 @@ export default function HomePage() {
               >
                 My Articles
               </button>
+              <Link
+                href="/articles"
+                className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-sky-700 hover:bg-sky-50 transition"
+              >
+                View all articles &rarr;
+              </Link>
             </nav>
           </aside>
 
@@ -412,14 +607,9 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (!confirmDiscardChanges()) return;
                     setSelectedArticleId(null);
-                    setTopic("");
-                    setKeywords(null);
-                    setStructure(null);
-                    setMeta(null);
-                    setContent("");
-                    setImages([]);
-                    setBlocks([]);
+                    resetDraftComposer();
                   }}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
@@ -449,7 +639,10 @@ export default function HomePage() {
                       >
                         <button
                           type="button"
-                          onClick={() => setSelectedArticleId(article.id)}
+                          onClick={() => {
+                            if (!confirmDiscardChanges()) return;
+                            setSelectedArticleId(article.id);
+                          }}
                           className="w-full text-left"
                         >
                           <div className="flex flex-wrap items-center gap-2">
@@ -501,9 +694,10 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={saveArticle}
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800"
+                disabled={isPersistingDraft}
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
               >
-                Save Article
+                {isPersistingDraft ? "Saving..." : "Save Article"}
               </button>
               <button
                 type="button"
@@ -528,6 +722,16 @@ export default function HomePage() {
                 Download as PDF
               </button>
             </div>
+
+            <p className="text-xs text-slate-500">
+              {isPersistingDraft
+                ? "Saving draft..."
+                : hasUnsavedChanges
+                  ? "Unsaved changes. Autosave runs every 25 seconds."
+                  : canPersistDraft
+                    ? "All changes saved."
+                    : "Generate content to start drafting."}
+            </p>
 
             {loading ? (
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -562,9 +766,43 @@ export default function HomePage() {
                   <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                     <div>
                       <h2 className="text-xl font-semibold text-slatebrand">Published Article Analytics</h2>
-                      <p className="text-sm text-slate-500">Track views and remove published articles directly.</p>
+                      <p className="text-sm text-slate-500">Track views, conversion funnel, and keyword performance.</p>
                     </div>
-                    <p className="text-sm font-semibold text-slate-700">Total published: {publishedArticles.length}</p>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-slate-700">Total published: {publishedArticles.length}</p>
+                      <Link href="/articles" className="mt-1 inline-block text-xs font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800">
+                        View all articles &rarr;
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="mb-6 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Top Keywords:</span>
+                    {analyticsFunnel.topKeywords.length > 0 ? analyticsFunnel.topKeywords.map(([kw, views]) => (
+                      <span key={kw} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 border border-emerald-200">
+                        <span className="text-xs font-bold text-emerald-800">{kw}</span>
+                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-1.5 rounded-full">{views} views</span>
+                      </span>
+                    )) : <span className="text-xs text-slate-400">Not enough data</span>}
+                  </div>
+
+                  <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-semibold text-slate-500">Drafts</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.totalDrafts}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-semibold text-slate-500">Published</p>
+                      <p className="mt-1 text-2xl font-bold text-emerald-600">{publishedArticles.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-semibold text-slate-500">Publish Rate</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.publishedRatio}%</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <p className="text-xs font-semibold text-slate-500">Avg Time to Publish</p>
+                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.timeCount > 0 ? analyticsFunnel.avgPublishTimeText : "-"}</p>
+                    </div>
                   </div>
 
                   {savedArticlesLoading ? (
@@ -589,9 +827,12 @@ export default function HomePage() {
                                 <p className="mt-1 text-xs text-slate-500">
                                   Published {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "-"}
                                 </p>
-                                <p className="mt-2 text-sm font-semibold text-slate-700">
-                                  {(article.viewCount ?? 0).toLocaleString()} views
-                                </p>
+                                <div className="mt-3 flex items-center gap-3">
+                                  <p className="text-sm font-semibold text-slate-700">
+                                    {(article.viewCount ?? 0).toLocaleString()} views
+                                  </p>
+                                  <Sparkline views={article.viewCount ?? 0} />
+                                </div>
                               </div>
                               <button
                                 type="button"

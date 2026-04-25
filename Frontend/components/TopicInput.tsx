@@ -35,6 +35,20 @@ export default function TopicInput({
           className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none ring-brand transition focus:ring"
         />
 
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Presets:</span>
+          {["Tutorial", "Review", "Comparison", "Case Study"].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setTopic(topic ? `${preset}: ${topic.replace(/^(Tutorial|Review|Comparison|Case Study):\\s*/i, '')}` : `${preset}: `)}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+            >
+              {preset}
+            </button>
+          ))}
+        </div>
+
         <button
           type="button"
           onClick={onGenerate}

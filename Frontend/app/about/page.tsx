@@ -8,34 +8,43 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-12 md:px-8">
-      <section className="glass-card rounded-3xl p-8 md:p-12">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-700">About</p>
-        <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
-          Built for fast, structured content workflows.
-        </h1>
-        <p className="mt-5 max-w-3xl text-base leading-7 text-slate-600">
-          ArticleShip Studio helps you generate, edit, and publish long-form technical content with a clean
-          workflow from topic idea to live article. The goal is simple: reduce friction without reducing quality.
-        </p>
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-semibold text-slate-900">Generate</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Create structured content packages from a single topic.</p>
+    <main className="mx-auto w-full max-w-4xl px-6 py-16 md:py-24 bg-[#f8fafc]">
+      <div className="space-y-12">
+        <header className="space-y-4 border-b border-slate-200 pb-8">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">About</p>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            Built for structured content workflows.
+          </h1>
+          <p className="max-w-2xl text-lg leading-relaxed text-slate-600">
+            ArticleShip Studio helps you generate, edit, and publish long-form technical content with a clean
+            workflow from topic idea to live article. The goal is simple: reduce friction without reducing quality.
+          </p>
+        </header>
+
+        <div className="grid gap-8 sm:grid-cols-3">
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold text-slate-900">1. Generate</h2>
+            <p className="text-sm leading-relaxed text-slate-600">Create structured content packages from a single topic with automatic SEO keyword generation.</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-semibold text-slate-900">Refine</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Edit copy, images, and formatting before publishing.</p>
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold text-slate-900">2. Refine</h2>
+            <p className="text-sm leading-relaxed text-slate-600">Edit copy, adjust images, and manage formatting interactively before anything goes live.</p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-semibold text-slate-900">Publish</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">Ship clean article pages with live structure and links.</p>
+          <div className="space-y-3">
+            <h2 className="text-base font-semibold text-slate-900">3. Publish</h2>
+            <p className="text-sm leading-relaxed text-slate-600">Ship clean article pages with live structure, links, and accurate meta tags instantly.</p>
           </div>
         </div>
-        <Link href="/" className="mt-8 inline-flex rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-          Back to home
-        </Link>
-      </section>
+
+        <div className="pt-8">
+          <Link 
+            href="/" 
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
     </main>
   );
 }

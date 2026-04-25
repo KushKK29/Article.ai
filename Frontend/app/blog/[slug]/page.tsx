@@ -60,6 +60,32 @@ type TableOfContentsItem = {
   level: 2 | 3 | 4;
 };
 
+function AdsenseSlot({
+  title,
+  tone = "standard",
+  className = ""
+}: {
+  title: string;
+  tone?: "best" | "strong" | "standard";
+  className?: string;
+}) {
+  const toneClass: Record<"best" | "strong" | "standard", string> = {
+    best: "border-rose-200 bg-rose-50 text-rose-900",
+    strong: "border-amber-200 bg-amber-50 text-amber-900",
+    standard: "border-stone-200 bg-stone-50 text-stone-700"
+  };
+
+  return (
+    <aside
+      className={`rounded-xl border-2 border-dashed p-4 ${toneClass[tone]} ${className}`}
+      aria-label={title}
+    >
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em]">Google AdSense</p>
+      <p className="mt-2 text-sm font-semibold leading-snug">{title}</p>
+    </aside>
+  );
+}
+
 function buildTableOfContents(article: PublishedArticle) {
   const toc: TableOfContentsItem[] = [];
   const structure = article.payload?.structure;
@@ -269,13 +295,40 @@ export default async function BlogArticlePage({
 
   const recentPostFallbackImage = "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=900&h=500&fit=crop";
 
+  const adContext = compactText(article.payload?.keywords?.primary_keyword || title || "Article Insights");
+
   return (
-    <section className="py-16 md:py-24 scroll-smooth">
-      <div className="mx-auto w-full max-w-6xl px-6">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
-          <main className="lg:col-span-8">
-            <article className="mb-16">
+    <section className="scroll-smooth pt-8 pb-3 md:pt-12 md:pb-5">
+      <div className="mx-auto w-full max-w-[1320px] px-6">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[300px_minmax(0,1fr)_280px] lg:gap-10 xl:gap-12">
+          <aside className="order-2 hidden w-full lg:order-1 lg:block">
+            <div className="space-y-6 lg:sticky lg:top-8">
+              <AdsenseSlot
+                title={`Left Ad 1 - ${adContext}`}
+                tone="best"
+                className="min-h-[280px]"
+              />
+              <AdsenseSlot
+                title={`Left Ad 2 - ${adContext}`}
+                tone="strong"
+                className="min-h-[280px]"
+              />
+              <AdsenseSlot
+                title={`Left Ad 3 - ${adContext}`}
+                className="min-h-[280px]"
+              />
+            </div>
+          </aside>
+
+          <main className="order-1 w-full lg:order-2">
+            <article className="mx-auto mb-16 w-full max-w-3xl">
               <ArticleViewTracker articleId={article.id} />
+
+              <AdsenseSlot
+                title="Ad Slot 1 - Header / Top Content"
+                tone="best"
+                className="mb-8"
+              />
 
               <div className="mb-6">
                 <span className="mb-4 inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-teal-700">
@@ -310,6 +363,12 @@ export default async function BlogArticlePage({
 
               <div className="article-html prose-custom space-y-5 text-base leading-relaxed text-stone-700" dangerouslySetInnerHTML={{ __html: content }} />
 
+              <AdsenseSlot
+                title="Ad Slot 2 - In-content"
+                tone="strong"
+                className="mt-10 hidden lg:block"
+              />
+
               {tags.length > 0 ? (
                 <div className="mt-10 flex flex-wrap gap-2 border-t border-stone-200 pt-8">
                   <span className="mr-2 self-center text-xs font-semibold uppercase tracking-wider text-stone-400">Tags:</span>
@@ -326,7 +385,7 @@ export default async function BlogArticlePage({
             </article>
           </main>
 
-          <aside className="lg:col-span-4">
+          <aside className="order-3 w-full lg:pl-3 xl:pl-4">
             <div className="space-y-10 lg:sticky lg:top-8">
               <div>
                 <h3 className="mb-5 border-b border-stone-200 pb-3 text-xs font-bold uppercase tracking-widest text-stone-400">
@@ -350,6 +409,12 @@ export default async function BlogArticlePage({
                   )}
                 </nav>
               </div>
+
+              <AdsenseSlot
+                title={`Right Ad - ${adContext}`}
+                tone="strong"
+                className="min-h-[250px]"
+              />
 
               {/*
               <div className="rounded-xl border border-stone-200 bg-white p-6">
@@ -397,52 +462,62 @@ export default async function BlogArticlePage({
         </div>
 
         {recentArticles.length > 0 ? (
-          <section className="mt-16 border-t border-stone-200 pt-12 md:pt-14">
-            <div className="mb-8 flex items-center justify-between gap-4">
-              <h2 className="text-3xl font-bold tracking-tight text-stone-900">Recently published</h2>
-              <span className="text-sm font-semibold text-teal-700">View all articles →</span>
+          <>
+            <section className="mt-16 border-t border-stone-200 pt-12 md:pt-14">
+              <div className="mb-8 flex items-center justify-between gap-4">
+                <h2 className="text-3xl font-bold tracking-tight text-stone-900">Recently published</h2>
+                <span className="text-sm font-semibold text-teal-700">View all articles →</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
+                {recentArticles.slice(0, 3).map((recentArticle) => {
+                  const recentTitle =
+                    recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
+                  const recentContent = normalizePublishedArticleHtml(recentArticle.payload?.content || "");
+                  const recentSummary =
+                    recentArticle.payload?.meta?.meta_description || stripHtml(recentContent).slice(0, 140).trim() || "Read the full article for practical insights.";
+                  const recentCategory = compactText(recentArticle.payload?.keywords?.primary_keyword || "AI Development") || "AI Development";
+                  const recentImage = recentPostFallbackImage;
+                  const recentReadMinutes = estimateReadingMinutes(recentContent);
+
+                  return (
+                    <Link
+                      key={recentArticle.id}
+                      href={`/blog/${recentArticle.slug}`}
+                      className="group block"
+                    >
+                      <div className="mb-4 overflow-hidden rounded-xl border border-stone-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={recentImage}
+                          alt={recentTitle}
+                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+                          loading="lazy"
+                        />
+                      </div>
+
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{recentCategory}</p>
+                      <h3 className="text-2xl font-bold leading-tight text-stone-900 transition-colors group-hover:text-teal-800">
+                        {recentTitle}
+                      </h3>
+                      <p className="mt-3 text-base leading-relaxed text-stone-500">{recentSummary}</p>
+                      <p className="mt-4 text-sm text-stone-400">
+                        {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
+                      </p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </section>
+
+            <div className="mx-auto mt-4 w-full max-w-4xl">
+              <AdsenseSlot
+                title="Ad Slot 5 - After Recently Published"
+                tone="strong"
+                className="min-h-[72px]"
+              />
             </div>
-
-            <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-              {recentArticles.slice(0, 3).map((recentArticle) => {
-                const recentTitle =
-                  recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
-                const recentContent = normalizePublishedArticleHtml(recentArticle.payload?.content || "");
-                const recentSummary =
-                  recentArticle.payload?.meta?.meta_description || stripHtml(recentContent).slice(0, 140).trim() || "Read the full article for practical insights.";
-                const recentCategory = compactText(recentArticle.payload?.keywords?.primary_keyword || "AI Development") || "AI Development";
-                const recentImage = recentPostFallbackImage;
-                const recentReadMinutes = estimateReadingMinutes(recentContent);
-
-                return (
-                  <Link
-                    key={recentArticle.id}
-                    href={`/blog/${recentArticle.slug}`}
-                    className="group block"
-                  >
-                    <div className="mb-4 overflow-hidden rounded-xl border border-stone-200">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={recentImage}
-                        alt={recentTitle}
-                        className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                        loading="lazy"
-                      />
-                    </div>
-
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{recentCategory}</p>
-                    <h3 className="text-2xl font-bold leading-tight text-stone-900 transition-colors group-hover:text-teal-800">
-                      {recentTitle}
-                    </h3>
-                    <p className="mt-3 text-base leading-relaxed text-stone-500">{recentSummary}</p>
-                    <p className="mt-4 text-sm text-stone-400">
-                      {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
-                    </p>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
+          </>
         ) : null}
       </div>
     </section>

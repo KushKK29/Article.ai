@@ -1,0 +1,210 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { SavedArticleRecord } from "@/components/SavedArticleWorkbench";
+
+const ITEMS_PER_PAGE = 12;
+
+export default function ArticlesPage() {
+  const [articles, setArticles] = useState<SavedArticleRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published">("all");
+  const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "views_desc">("date_desc");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    async function loadArticles() {
+      try {
+        const res = await fetch("/api/articles");
+        if (!res.ok) throw new Error("Failed to load");
+        const data = await res.json();
+        setArticles(data.articles || []);
+      } catch (err) {
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadArticles();
+  }, []);
+
+  const filteredAndSorted = useMemo(() => {
+    let result = articles;
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const lowerQ = searchQuery.toLowerCase();
+      result = result.filter(a => 
+        (a.topic && a.topic.toLowerCase().includes(lowerQ)) || 
+        (a.slug && a.slug.toLowerCase().includes(lowerQ))
+      );
+    }
+
+    // Filter by status
+    if (statusFilter !== "all") {
+      result = result.filter(a => a.status === statusFilter);
+    }
+
+    // Sort
+    result = result.sort((a, b) => {
+      if (sortBy === "views_desc") {
+        return (b.viewCount || 0) - (a.viewCount || 0);
+      }
+      
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : new Date(b.createdAt).getTime();
+      
+      if (sortBy === "date_desc") return dateB - dateA;
+      if (sortBy === "date_asc") return dateA - dateB;
+      return 0;
+    });
+
+    return result;
+  }, [articles, searchQuery, statusFilter, sortBy]);
+
+  const totalPages = Math.ceil(filteredAndSorted.length / ITEMS_PER_PAGE) || 1;
+  
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  const paginatedArticles = filteredAndSorted.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  return (
+    <main className="min-h-screen px-4 py-8 md:px-8 lg:px-12 bg-[#f8fafc] text-slate-800">
+      <div className="mx-auto max-w-[1200px] space-y-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">All Articles</h1>
+            <p className="text-slate-500 mt-1">Manage and view all your generated content.</p>
+          </div>
+          <Link href="/" className="inline-block rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800">
+            Back to Dashboard
+          </Link>
+        </header>
+
+        <section className="glass-card rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex-1 w-full md:max-w-md">
+              <input 
+                type="text" 
+                placeholder="Search by topic or slug..." 
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <select 
+                value={statusFilter} 
+                onChange={e => setStatusFilter(e.target.value as any)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-sky-200 bg-white"
+              >
+                <option value="all">All Statuses</option>
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+              </select>
+
+              <select 
+                value={sortBy} 
+                onChange={e => setSortBy(e.target.value as any)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-sky-200 bg-white"
+              >
+                <option value="date_desc">Newest First</option>
+                <option value="date_asc">Oldest First</option>
+                <option value="views_desc">Most Views</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1,2,3,4,5,6].map(i => (
+               <div key={i} className="skeleton h-48 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700">
+            Failed to load articles. Please refresh the page.
+          </div>
+        ) : paginatedArticles.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+            No articles found matching your criteria.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedArticles.map(article => (
+              <div key={article.id} className="flex flex-col justify-between rounded-2xl p-5 border border-slate-200 bg-white shadow-sm transition hover:shadow-md">
+                <div>
+                  <div className="flex justify-between items-start mb-3">
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${article.status === "published" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      {article.status || "draft"}
+                    </span>
+                    {article.status === "published" && (
+                      <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                        {article.viewCount || 0} views
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight">
+                    {article.topic}
+                  </h3>
+                  <div className="mt-4 text-xs text-slate-500 space-y-1.5">
+                     <p><span className="font-semibold">Created:</span> {new Date(article.createdAt).toLocaleDateString()}</p>
+                     {article.publishedAt && <p><span className="font-semibold">Published:</span> {new Date(article.publishedAt).toLocaleDateString()}</p>}
+                     {article.slug && <p className="truncate"><span className="font-semibold">Slug:</span> /{article.slug}</p>}
+                  </div>
+                </div>
+                
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <Link href={`/?articleId=${article.id}`} className="text-sm font-semibold text-brand hover:text-sky-700 transition">
+                    Edit Article
+                  </Link>
+                  {article.status === "published" && article.slug && (
+                    <a href={`/blog/${article.slug}`} className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition" target="_blank" rel="noreferrer">
+                      View Live →
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && !error && filteredAndSorted.length > 0 && (
+          <div className="flex items-center justify-between border-t border-slate-200 pt-6">
+            <p className="text-sm text-slate-500">
+              Showing <span className="font-semibold text-slate-900">{Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, filteredAndSorted.length)}</span> to <span className="font-semibold text-slate-900">{Math.min(currentPage * ITEMS_PER_PAGE, filteredAndSorted.length)}</span> of <span className="font-semibold text-slate-900">{filteredAndSorted.length}</span> articles
+            </p>
+            <div className="flex gap-2">
+              <button 
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button 
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
