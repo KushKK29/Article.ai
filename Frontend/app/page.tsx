@@ -717,12 +717,12 @@ export default function HomePage() {
                 onClick={() => setAiGenerated((v) => !v)}
               >
                 <span className="text-sm font-semibold text-slate-700">
-                  {aiGenerated ? "AI-generated images" : "Stock photos (Unsplash)"}
+                  {aiGenerated ? "✨ AI-generated art" : "📷 Real photos (Unsplash)"}
                 </span>
                 <span className="text-xs text-slate-400">
                   {aiGenerated
-                    ? "Pollinations.ai — unique per article, slower"
-                    : "Unsplash — fast, high quality, real photos"}
+                    ? "Pollinations.ai — unique AI images, may be slower"
+                    : "Unsplash — real high-quality stock photography"}
                 </span>
               </label>
             </div>
