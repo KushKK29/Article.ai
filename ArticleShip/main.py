@@ -1,6 +1,7 @@
 import asyncio
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+
 from pydantic import BaseModel
 from typing import Dict, Any, List
 
@@ -13,6 +14,9 @@ from services.pipeline import run_pipeline
 from services.html_converter import convert_final_payload_to_html
 from services.hybrid_html_converter import convert_final_payload_to_hybrid_html
 from services.article_store import save_article, list_articles, get_article_by_slug, get_article_by_id, publish_article, update_article, delete_article, track_article_view
+from services.ddg_search import perform_ddg_search
+
+
 
 app = FastAPI(
     title="ArticleShip API",
@@ -29,6 +33,19 @@ async def root_health():
 @app.get("/health", tags=["Health"])
 async def health_check():
     return {"status": "ok"}
+
+@app.get("/api/v1/search", tags=["Search"])
+async def search(q: str = Query(...), count: int = 10):
+    """
+    Search the web using DuckDuckGo.
+    """
+    try:
+        results = await perform_ddg_search(q, count)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 
 class TopicRequest(BaseModel):
     topic: str

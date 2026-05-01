@@ -145,6 +145,19 @@ h4 {
   font-weight: 600;
 }
 
+.article-html .citation-badge .citation-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+  font-weight: inherit;
+}
+
+.article-html .citation-badge .citation-link:hover {
+  color: #1e40af;
+}
+
+
 .article-html .article-image {
   width: min(72%, 760px);
   border-radius: 0.75rem;

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getBackendUrl } from "@/lib/backend";
 import ArticleViewTracker from "@/components/ArticleViewTracker";
+import CitationBadgeEnhancer from "@/components/CitationBadgeEnhancer";
 
 type PublishedArticle = {
   id: string;
@@ -323,6 +324,7 @@ export default async function BlogArticlePage({
           <main className="order-1 w-full lg:order-2">
             <article className="mx-auto mb-16 w-full max-w-3xl">
               <ArticleViewTracker articleId={article.id} />
+              <CitationBadgeEnhancer />
 
               <AdsenseSlot
                 title="Ad Slot 1 - Header / Top Content"
@@ -341,7 +343,7 @@ export default async function BlogArticlePage({
                   <p className="mb-4 text-base leading-relaxed text-stone-500">{description}</p>
                 ) : null}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-stone-400">
-                  <span className="font-medium text-stone-600">By ArticleShip Editorial</span>
+                  <span className="font-medium text-stone-600">By Kush Goel</span>
                   <span>·</span>
                   <time>{publishedDate}</time>
                   <span>·</span>

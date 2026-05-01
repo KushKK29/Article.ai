@@ -12,14 +12,17 @@ LINK_RE         = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 # [IMAGE ALT: some descriptive text]  — strip from content (already consumed by image block)
 IMAGE_ALT_RE    = re.compile(r"\[IMAGE ALT:[^\]]*\]", re.IGNORECASE)
 
-# [SOURCE: institution + year]  — render as superscript citation badge
+# [SOURCE: institution — title — url]  — LEGACY: render as inline link (new articles use markdown links)
 SOURCE_RE       = re.compile(r"\[SOURCE:\s*([^\]]+)\]", re.IGNORECASE)
 
 # [INTERNAL LINK: suggested topic]  — render as a styled anchor placeholder
 INTERNAL_LINK_RE = re.compile(r"\[INTERNAL LINK:\s*([^\]]+)\]", re.IGNORECASE)
 
 # META_DESCRIPTION: ... line that sometimes bleeds into last block content
-META_DESC_LINE_RE = re.compile(r"^META_DESCRIPTION:.*$", re.MULTILINE | re.IGNORECASE)
+META_DESC_LINE_RE   = re.compile(r"^META_DESCRIPTION:.*$", re.MULTILINE | re.IGNORECASE)
+
+# ALT_TAG_AUDIT: ... line emitted by model at end of article for self-validation
+ALT_TAG_AUDIT_RE    = re.compile(r"^ALT_TAG_AUDIT:.*$", re.MULTILINE | re.IGNORECASE)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -38,11 +41,13 @@ def _extract_heading_text(heading: str) -> str:
 def _clean_content(content: str) -> str:
     """
     Strip all ArticleShip placeholders that should NOT appear as raw text in output.
-    - [IMAGE ALT: ...] — consumed separately, not needed in body
+    - [IMAGE ALT: ...] — consumed separately by image block, not needed in body
     - META_DESCRIPTION: ... — strip if model leaked it into last block
+    - ALT_TAG_AUDIT: ... — model self-validation line, never shown to readers
     """
     content = IMAGE_ALT_RE.sub("", content)
     content = META_DESC_LINE_RE.sub("", content)
+    content = ALT_TAG_AUDIT_RE.sub("", content)
     return content.strip()
 
 
@@ -65,14 +70,27 @@ def _apply_inline_markdown(text: str) -> str:
     # Italic
     escaped = ITALIC_RE.sub(r"<em>\1</em>", escaped)
 
-    # [SOURCE: institution + year]  →  superscript citation badge
+    # [SOURCE: ...] — LEGACY fallback for old articles stored before inline-link format.
+    # New articles use [anchor text](url) markdown links handled by LINK_RE above.
+    # For old articles: render as an inline anchor if a URL is present, else strip silently.
     def _source_badge(m: re.Match) -> str:
         label = m.group(1).strip()
-        return (
-            f'<sup class="citation-badge" title="{html.escape(label)}" '
-            f'aria-label="Source: {html.escape(label)}">'
-            f'[{html.escape(label)}]</sup>'
-        )
+
+        url_match = re.search(r'https?://\S+', label)
+        url = url_match.group(0).rstrip('.,)">') if url_match else ""
+
+        parts_split = re.split(r'\s+[\u2014\u2013-]{1,2}\s+', label)
+        display = parts_split[0].strip() if parts_split else label
+        if not display or len(display) > 60:
+            display = label[:57].rstrip(" \u2014\u2013-").strip() + "\u2026"
+
+        if url:
+            return (
+                f'<a class="article-link" href="{html.escape(url)}" '
+                f'target="_blank" rel="noopener noreferrer">{html.escape(display)}</a>'
+            )
+        # No URL — strip the placeholder entirely
+        return ""
     escaped = SOURCE_RE.sub(_source_badge, escaped)
 
     # [INTERNAL LINK: suggested topic]  →  styled anchor placeholder
@@ -279,9 +297,11 @@ def _block_to_html(block: Dict[str, Any], include_inline_styles: bool) -> str:
     )
 
     # Image block
+    # Extract model's [IMAGE ALT: ...] hint before either branch consumes it
+    hinted_alt = _extract_image_alt_hint(raw_content)
+
     if image and image.get("url"):
-        # Prefer alt text hinted by model over generic Unsplash description
-        hinted_alt = _extract_image_alt_hint(raw_content)
+        # Real image: prefer model alt hint over generic Unsplash description
         img_alt    = hinted_alt or html.escape(str(image.get("alt", heading_text)))
         img_src    = html.escape(str(image["url"]))
         credit     = str(image.get("credit", "")).strip()
@@ -306,6 +326,17 @@ def _block_to_html(block: Dict[str, Any], include_inline_styles: bool) -> str:
                     f'Image credit: {html.escape(credit)}</figcaption>'
                 )
         parts.append('</figure>')
+
+    elif hinted_alt:
+        # No real image URL (Unsplash fetch failed/skipped) but model provided an alt hint.
+        # Render a visually-hidden placeholder so the alt text survives for SEO crawlers
+        # and screen readers without breaking the visual layout.
+        parts.append(
+            f'<img class="article-image article-image--pending" '
+            f'alt="{html.escape(hinted_alt)}" '
+            f'loading="lazy" style="display:none" />'
+        )
+
 
     # Body content — clean first, then convert
     if raw_content.strip():

@@ -5,7 +5,8 @@ import logging
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-from duckduckgo_search import DDGS
+from ddgs import DDGS
+
 
 load_dotenv()
 
@@ -340,8 +341,19 @@ Your task: write a comprehensive, publication-ready article following the exact 
 ---
 TOPIC: "{topic}"
 
-SEARCH CONTEXT (live retrieval snippets):
+SEARCH CONTEXT (live retrieval — mandatory source material, not optional reference):
 {search_context}
+
+BEFORE YOU WRITE ANYTHING, scan these snippets and extract:
+- Named tools, libraries, or products mentioned with complaints or praise
+- Specific error messages, failure modes, or edge cases surfaced by real users
+- Any stat or number with an attributable source URL
+- Community sentiment signals (frustration, surprise, strong opinions)
+- Any claim here that contradicts the mainstream narrative on this topic
+
+You will use these extractions as the factual backbone of the article.
+Minimum usage requirement: at least 4 snippets must directly inform a named 
+section. Track which snippet informed which section as you write.
 
 CONTENT ANGLE — lead with this differentiation hook, do not ignore it:
 {seo_data.get('content_angle', '')}
@@ -360,6 +372,15 @@ Full SEO data:
 ---
 ARTICLE STRUCTURE (locked — reproduce every heading exactly, correct Markdown hierarchy):
 {json.dumps(structure, indent=2)}
+
+---
+PRE-WRITING STEP (do this mentally before drafting):
+Map each retrieved snippet to the most relevant section heading. 
+If a snippet contains a real failure mode → it belongs in a risk/limitation section.
+If a snippet contains a benchmark or time saving → it belongs in a results section.
+If a snippet is from Reddit or HN → it is community evidence, cite it as such.
+If two snippets contradict each other → that contradiction IS a section insight.
+Discard only snippets that are clearly off-topic or spam.
 
 ---
 WRITING RULES:
@@ -429,6 +450,14 @@ WRITING RULES:
 
    If a section contains only general statements with none of the above, REWRITE it before outputting.
 
+   Priority sourcing order for these insights:
+    1. Something directly extracted from the SEARCH CONTEXT snippets
+    2. Something inferred from a pattern across multiple snippets
+    3. A general industry-documented pattern (last resort only)
+    
+    An insight that ignores available search context in favor of a generic 
+    claim is a rule 5 violation.
+
 6. EXPERIENCE LAYER — NO THEORY WITHOUT PROOF
    Every claim must be grounded in: a named tool, a specific workflow step, a real error type, a measurable outcome, or an industry-documented pattern.
    Prohibited claim types:
@@ -445,7 +474,16 @@ WRITING RULES:
    - Never use a percentage without it being either (a) attributed to an external source with a real citation or (b) qualified as an internal estimate with a methodology note.
 
 8. KEYWORD IN INTRO (critical SEO fix)
-   The primary keyword "{primary_kw}" must appear naturally within the first 2 sentences. Read the first two sentences aloud. If they sound like a keyword brief, rewrite them.
+   The primary keyword "{primary_kw}" must appear naturally within the first 
+   2 sentences — EXACTLY ONCE. Read the first two sentences aloud. If the 
+   primary keyword appears more than once in the opening paragraph, delete 
+   the second instance and replace with a pronoun or varied phrasing.
+   If they sound like a keyword brief, rewrite them.
+   
+   BANNED in opening paragraph:
+   - Using the primary keyword twice in the same paragraph
+   - Starting consecutive sentences with the same phrase
+   - Any variation of "[keyword] is often framed as..."
 
 9. COMPLETENESS
    Every heading gets its own dedicated section. Never merge two headings. Never skip one.
@@ -521,15 +559,24 @@ WRITING RULES:
     Place 3–5 [INTERNAL LINK: suggested topic] anchors on specific, meaningful anchor phrases.
     Example: [INTERNAL LINK: how to conduct an AI-assisted code review]
 
-22. CITATION RULES
-    When referencing external statistics or studies:
-    - Use ONLY real institutions with specific named reports.
-      Good: [SOURCE: GitHub Octoverse 2024 — "The State of Open Source" — https://github.blog/...]
-      Bad: [SOURCE: GitHub 2024]
-    - If you cannot name a specific, real, verifiable report: DO NOT include the statistic.
-    - Invent zero numbers. Use zero unattributed stats.
-    - Write anchor text as the claim phrase, not the institution name.
-    NOTE TO RENDERING PIPELINE: Every [SOURCE: ...] placeholder MUST be converted to a working HTML hyperlink before publication. Rendering these as visible styled boxes or raw text is worse than no citation — it actively signals low quality to Google's crawlers and human quality raters.
+22. CITATION FORMAT — INLINE HYPERLINKS ONLY
+    When a sentence references an external statistic, study, or data point,
+    wrap the claim phrase itself as a Markdown link — do NOT use [SOURCE: ...] blocks.
+
+    FORMAT: [the claim phrase](https://real-url)
+
+    Example:
+      "[Over 600 million blogs now exist on the internet](https://optinmonster.com/blogging-statistics/),
+       and most of them are competing for the same handful of head terms."
+
+    Rules:
+    - The anchor text must be the actual claim, not the institution name.
+    - The URL must be real, verifiable, and from a named institution.
+      Good URL sources: github.blog, research.google.com, orbit.media, statista.com
+    - If you cannot name a real, specific, verifiable URL for a stat: omit the stat entirely.
+    - Never invent a URL. Never fabricate a number.
+    - One inline link per cited claim — do not stack multiple citations on one phrase.
+    - Do NOT use [SOURCE: ...] format anywhere in the output.
 
 23. FORMATTING WITHIN SECTIONS
     - Any section listing 3+ discrete items MUST use a bullet or numbered list.
@@ -541,15 +588,25 @@ WRITING RULES:
     - Blockquote: one memorable expert-voice statement per H2.
 
 24. IMAGE ALT TEXT RULES
-    After every H2 heading line, write on a new line:
-    [IMAGE ALT: a 6–10 word descriptive alt text]
-    Rules:
+    After EVERY H2 heading line, on its own new line, write EXACTLY this format:
+    [IMAGE ALT: descriptive alt text here]
+
+    This line must appear BEFORE any prose content in that section.
+    If this line is missing from any H2 section, that section is incomplete.
+
+    SELF-CHECK: After completing the full article, before the META_DESCRIPTION line,
+    output a single line:
+    ALT_TAG_AUDIT: [n] H2 sections found, [n] IMAGE ALT tags written.
+    If the two numbers differ, insert the missing [IMAGE ALT: ...] tags immediately
+    above this audit line before moving to the META_DESCRIPTION.
+
+    Rules for the alt text itself:
     - Must describe actual visual content directly relevant to the section topic.
     - Must function as a precise image search query a photo editor could use.
     - Must NOT be abstract, generic, or unrelated to the section.
     Good: [IMAGE ALT: developer reviewing TypeScript error in VS Code terminal]
-    Bad: [IMAGE ALT: ChatGPT interface screenshot] on a Copilot article ← topic mismatch
-    Bad: [IMAGE ALT: artificial intelligence concept visualization] ← too abstract
+    Bad: [IMAGE ALT: ChatGPT interface screenshot] on a Copilot article <- topic mismatch
+    Bad: [IMAGE ALT: artificial intelligence concept visualization] <- too abstract
 
 25. TITLE INTEGRITY (new — addresses title/content mismatch problem)
     The H1 title MUST reflect the full article topic, not a single section or technique within it.
@@ -561,20 +618,51 @@ WRITING RULES:
 26. CLOSING PARAGRAPH (non-negotiable)
     End the final content section (not the FAQ) with a single strong, opinionated paragraph that directly challenges the reader. No soft landings. No "only time will tell." Make a clear claim and defend it in 3–4 sentences.
 
-27. RETRIEVAL GROUNDING (required)
-    Use SEARCH CONTEXT to align examples, terminology, and framing with real-world discourse.
-    - Do not copy retrieved snippets verbatim.
-    - Do not invent named tools, benchmark figures, or claims that are unsupported by SEO data or retrieved context.
-    - If context is weak, stay general and avoid fabricated specifics.
+27. RETRIEVAL GROUNDING (mandatory — not a style suggestion)
+
+    The SEARCH CONTEXT above contains real, domain-scored snippets from 
+    authoritative sources. Treat them as field notes, not decoration.
+
+    REQUIRED USAGE:
+    a) At least 4 sections must contain a direct reference to something 
+       from the search context — a named tool, a specific failure mode, 
+       a community complaint, or a sourced stat.
+
+    b) At least 2 inline citation links must use URLs directly from the
+       search context snippets. Do not fabricate source URLs.
+
+    c) If any snippet describes a real failure, bug, or limitation — it 
+       MUST appear in the article. Do not soften or omit it to make the 
+       topic look better than the evidence suggests.
+
+    d) If snippets from Reddit or Hacker News contain strong community 
+       sentiment (frustration, surprise, pushback), surface that as a 
+       named data point:
+       Example: "HN commenters consistently flagged X as the breaking point..."
+
+    e) If two snippets contradict each other, that tension is an insight. 
+       Write it as: "While [source A] found X, the HN thread on this showed 
+       the opposite for teams doing Y — the difference comes down to..."
+
+    PROHIBITED:
+    - Do not copy snippet text verbatim.
+    - Do not invent URLs not present in the search context.
+    - Do not use a generic stat ("studies show...") when a specific sourced
+      stat is available in the context.
+    - If the context is genuinely thin on a subtopic, say so explicitly
+      in the article rather than fabricating specifics.
 
 ---
 OUTPUT FORMAT — output in this exact order:
 1. The complete article in Markdown
 2. A blank line
-3. Exactly this line:
+3. Exactly this line (fill in real counts):
+   ALT_TAG_AUDIT: [n] H2 sections found, [n] IMAGE ALT tags written.
+4. A blank line
+5. Exactly this line:
    META_DESCRIPTION: [150–160 character meta description — include primary keyword, written for CTR, present tense, active voice]
 
-Begin now. Output only the article and the META_DESCRIPTION line — zero preamble, zero commentary."""
+Begin now. Output only the article, the ALT_TAG_AUDIT line, and the META_DESCRIPTION line — zero preamble, zero commentary."""
 
 
 async def generate_article_content(

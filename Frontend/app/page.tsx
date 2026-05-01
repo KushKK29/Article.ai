@@ -125,6 +125,7 @@ export default function HomePage() {
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>("");
   const [isPersistingDraft, setIsPersistingDraft] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [aiGenerated, setAiGenerated] = useState(false);
   const autosaveErrorAtRef = useRef(0);
 
   const currentDraftPayload = useMemo(
@@ -373,7 +374,7 @@ export default function HomePage() {
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic })
+        body: JSON.stringify({ topic, ai_generated: aiGenerated })
       });
 
       if (!response.ok) {
@@ -689,6 +690,42 @@ export default function HomePage() {
               currentStep={displaySteps}
               steps={STEPS}
             />
+
+            {/* AI Image toggle */}
+            <div className="flex items-center gap-3">
+              <button
+                id="ai-image-toggle"
+                type="button"
+                role="switch"
+                aria-checked={aiGenerated}
+                onClick={() => setAiGenerated((v) => !v)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+                  aiGenerated
+                    ? "border-violet-600 bg-violet-600"
+                    : "border-slate-300 bg-slate-200"
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 translate-y-[1px] rounded-full bg-white shadow ring-0 transition-transform duration-200 ${
+                    aiGenerated ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+              <label
+                htmlFor="ai-image-toggle"
+                className="flex cursor-pointer select-none flex-col"
+                onClick={() => setAiGenerated((v) => !v)}
+              >
+                <span className="text-sm font-semibold text-slate-700">
+                  {aiGenerated ? "AI-generated images" : "Stock photos (Unsplash)"}
+                </span>
+                <span className="text-xs text-slate-400">
+                  {aiGenerated
+                    ? "Pollinations.ai — unique per article, slower"
+                    : "Unsplash — fast, high quality, real photos"}
+                </span>
+              </label>
+            </div>
 
             <div className="flex flex-wrap gap-3">
               <button

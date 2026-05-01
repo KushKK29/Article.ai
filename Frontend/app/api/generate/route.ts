@@ -47,11 +47,13 @@ function buildStructureFromBlocks(blocks: ContentBlock[]) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic } = await request.json();
+    const { topic, ai_generated } = await request.json();
 
     if (!topic || typeof topic !== "string") {
       return NextResponse.json({ error: "Topic is required" }, { status: 400 });
     }
+
+    const imageSource = ai_generated === true ? "ai" : "stock";
 
     const backendUrl = getBackendEndpointUrl();
 
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         topic,
-        image_source: "stock",
+        image_source: imageSource,
         include_inline_styles: true
       }),
       cache: "no-store"
