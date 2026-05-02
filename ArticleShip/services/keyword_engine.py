@@ -141,6 +141,24 @@ KEYWORD RULES:
 - keyword_gaps: Explicit capture of competitive landscape derived from retrieved snippets.
 - target_audience: Who is searching this and why — directly informs the article hook.
 
+CATEGORY CLASSIFICATION:
+Based on the topic and search context, classify this article into exactly one of these categories:
+- "SEO & Content" — keyword research, on-page SEO, backlinks, content strategy, blog growth, Google rankings, AdSense
+- "AI & Dev Tools" — LLMs, AI coding assistants (Copilot, Cursor), GPT, model APIs, AI-powered workflows
+- "Software Engineering" — programming languages, frameworks, architecture, DevOps, system design, debugging
+- "Web Development" — frontend, backend, CSS, JavaScript, React, Next.js, APIs, databases
+- "Data & Analytics" — data science, machine learning, BI tools, SQL, Python for data, statistics
+- "Product & Startups" — SaaS, growth hacking, founding a company, product management, go-to-market
+- "Career & Industry" — hiring, interviews, job market, remote work, engineering culture, salary
+- "Science & Research" — academic studies, scientific method, physics, biology, chemistry, research papers
+- "History & Society" — historical events, civilisations, social movements, geopolitics, economics
+- "Entertainment & Culture" — movies, music, books, gaming, celebrity, pop culture, reviews
+- "Health & Wellness" — fitness, nutrition, mental health, medicine, biohacking
+- "Finance & Investing" — personal finance, stocks, crypto, real estate, trading strategies
+- "General" — topics that don't clearly fit any of the above
+
+Pick the single best-matching category. Do not invent a new category name.
+
 OUTPUT: Respond with a single valid JSON object only. No markdown code fences. No explanation text before or after. No trailing commas.
 
 Required JSON schema:
@@ -151,6 +169,7 @@ Required JSON schema:
   "lsi_keywords": ["string", "string", "string", "string", "string"],
   "search_intent": "Informational | Transactional | Navigational | Commercial",
   "content_angle": "string",
+  "category": "SEO & Content | AI & Dev Tools | Software Engineering | Web Development | Data & Analytics | Product & Startups | Career & Industry | Science & Research | History & Society | Entertainment & Culture | Health & Wellness | Finance & Investing | General",
   "keyword_gaps": {{
     "saturated": ["keywords already well-covered by top results"],
     "underserved": ["keywords with search demand but weak existing content"],

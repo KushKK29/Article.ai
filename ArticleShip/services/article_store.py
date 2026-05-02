@@ -184,9 +184,15 @@ def _decode_article_from_storage(article: Dict[str, Any] | None) -> Dict[str, An
 def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     collection = _get_collection()
     stored_payload = _encode_payload_for_storage(payload)
+
+    # Hoist category to a top-level field so we can query without deserialising the payload.
+    seo_data = payload.get("seo_data") or payload.get("keywords") or {}
+    category = str(seo_data.get("category") or "").strip() or "General"
+
     article = {
         "id": uuid4().hex,
         "topic": topic,
+        "category": category,
         "createdAt": _utc_now_iso(),
         "updatedAt": _utc_now_iso(),
         "status": "draft",
@@ -219,6 +225,47 @@ def list_articles(slug: str | None = None, status: str | None = None) -> List[Di
         _decode_article_from_storage(doc) or doc
         for doc in docs
     ]
+
+
+def list_articles_by_category(category: str, exclude_topic: str = "") -> List[Dict[str, str]]:
+    """
+    Returns a lightweight list of {title, slug, publishedUrl} for published articles
+    in the given category.  Used to build the internal-link candidate list.
+    Only published articles with a real slug are included.
+    """
+    collection = _get_collection()
+    query: Dict[str, Any] = {
+        "status": "published",
+        "category": category,
+        "slug": {"$nin": [None, ""]},
+    }
+    docs = list(
+        collection.find(
+            query,
+            {"_id": 0, "topic": 1, "slug": 1, "publishedUrl": 1, "payload": 1},
+        ).sort("publishedAt", -1)
+    )
+
+    results: List[Dict[str, str]] = []
+    for doc in docs:
+        # Derive the human-readable title from the stored payload (same logic as _article_title).
+        payload = doc.get("payload") or {}
+        structure = payload.get("structure") or {}
+        meta = payload.get("meta") or {}
+        title = (
+            str(structure.get("h1") or meta.get("title") or doc.get("topic") or "").strip()
+        )
+        if not title:
+            continue
+
+        # Skip the article being generated right now to avoid self-links.
+        if exclude_topic and title.lower() == exclude_topic.lower():
+            continue
+
+        published_url = str(doc.get("publishedUrl") or f"/blog/{doc['slug']}").strip()
+        results.append({"title": title, "url": published_url})
+
+    return results
 
 
 def get_article_by_slug(slug: str) -> Dict[str, Any] | None:

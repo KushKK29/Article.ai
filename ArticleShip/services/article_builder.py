@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import asyncio
 import logging
@@ -6,6 +7,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from ddgs import DDGS
+from services.article_store import list_articles_by_category
 
 
 load_dotenv()
@@ -327,12 +329,70 @@ def _retrieve_article_context_sync(topic: str) -> str:
     return "\n\n---\n\n".join(snippets)
 
 
+def _title_similarity(topic: str, title: str) -> float:
+    """
+    Simple word-overlap similarity between the current topic and a candidate article title.
+    Returns a float in [0, 1]. No external dependencies needed.
+    """
+    stop = {
+        "the", "a", "an", "and", "or", "for", "in", "on", "at", "to", "of",
+        "is", "are", "was", "were", "with", "how", "what", "why", "does", "do",
+        "can", "will", "be", "it", "its", "that", "this", "you", "your",
+    }
+    def tokens(text: str) -> set:
+        return {w for w in re.sub(r"[^a-z0-9]", " ", text.lower()).split() if w not in stop and len(w) > 1}
+
+    t_tokens = tokens(topic)
+    a_tokens = tokens(title)
+    if not t_tokens or not a_tokens:
+        return 0.0
+    return len(t_tokens & a_tokens) / len(t_tokens | a_tokens)
+
+
+def select_related_articles(
+    topic: str,
+    candidates: list[dict],
+    max_results: int = 5,
+    min_similarity: float = 0.05,
+) -> list[dict]:
+    """
+    Pick the most topically relevant articles from the category candidates list
+    using title-overlap similarity. Returns up to max_results items.
+    """
+    scored = [
+        (c, _title_similarity(topic, c["title"]))
+        for c in candidates
+    ]
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return [
+        c for c, score in scored
+        if score >= min_similarity
+    ][:max_results]
+
+
 def build_prompt(topic: str, seo_data: dict, structure: dict,
                  search_context: str,
-                 banned_phrases: list[str] = BANNED_PHRASES) -> str:
+                 banned_phrases: list[str] = BANNED_PHRASES,
+                 related_articles: list[dict] | None = None) -> str:
     primary_kw = seo_data.get("primary_keyword", "")
     search_intent = seo_data.get("search_intent", "Informational")
     banned = ', '.join(f'"{p}"' for p in banned_phrases)
+
+    # Build the internal links instruction block before entering the f-string.
+    if related_articles and len(related_articles) >= 2:
+        _internal_links_block = (
+            f"INTERNAL LINKS (use ONLY the URLs in this list — do not invent others):\n"
+            f"{json.dumps(related_articles, indent=2)}\n\n"
+            "Link naturally on anchor text that matches the linked article's topic. "
+            "If none of the articles fit naturally in a section, do not force a link. "
+            "Never fabricate a URL not present in this list."
+        )
+    else:
+        _internal_links_block = (
+            "Internal linking is DISABLED for this generation run "
+            "(fewer than 2 published articles exist in this category). "
+            "Do NOT add any internal links — not even placeholder anchors."
+        )
 
     return f"""You are a senior technical writer and SEO strategist with 10+ years of experience writing for high-authority publications (Wired, Smashing Magazine, TechCrunch). You write like a domain expert who has actually done the work — opinionated, specific, occasionally contrarian, and never generic. You are not an AI assistant summarizing the internet. You are a practitioner sharing hard-won experience.
 
@@ -555,9 +615,8 @@ WRITING RULES:
     Every code block must have a 1–2 sentence explanation of what it demonstrates and what to watch for in the output.
     Do not add code for its own sake — only where it directly illustrates the claim.
 
-21. INTERNAL LINK PLACEHOLDERS
-    Place 3–5 [INTERNAL LINK: suggested topic] anchors on specific, meaningful anchor phrases.
-    Example: [INTERNAL LINK: how to conduct an AI-assisted code review]
+21. INTERNAL LINKS
+    {_internal_links_block}
 
 22. CITATION FORMAT — INLINE HYPERLINKS ONLY
     When a sentence references an external statistic, study, or data point,
@@ -670,6 +729,7 @@ async def generate_article_content(
     seo_data: dict,
     structure: dict,
     *,
+    related_articles: list[dict] | None = None,
     model: str = "gemini-3-flash-preview",
     temperature: float = 0.7,
 ) -> str:
@@ -677,7 +737,7 @@ async def generate_article_content(
     Generate full article markdown from topic, SEO data, and locked structure.
     """
     search_context = await asyncio.to_thread(_retrieve_article_context_sync, topic)
-    prompt = build_prompt(topic, seo_data, structure, search_context)
+    prompt = build_prompt(topic, seo_data, structure, search_context, related_articles=related_articles)
 
     try:
         response = await asyncio.to_thread(

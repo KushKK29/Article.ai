@@ -13,6 +13,7 @@ export default function ArticlesPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published">("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "views_desc">("date_desc");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -32,6 +33,14 @@ export default function ArticlesPage() {
     loadArticles();
   }, []);
 
+  const categories = useMemo(() => {
+    const cats = new Set<string>();
+    articles.forEach(a => {
+      if (a.category) cats.add(a.category);
+    });
+    return Array.from(cats).sort();
+  }, [articles]);
+
   const filteredAndSorted = useMemo(() => {
     let result = articles;
 
@@ -49,6 +58,11 @@ export default function ArticlesPage() {
       result = result.filter(a => a.status === statusFilter);
     }
 
+    // Filter by category
+    if (categoryFilter !== "all") {
+      result = result.filter(a => a.category === categoryFilter);
+    }
+
     // Sort
     result = result.sort((a, b) => {
       if (sortBy === "views_desc") {
@@ -64,7 +78,7 @@ export default function ArticlesPage() {
     });
 
     return result;
-  }, [articles, searchQuery, statusFilter, sortBy]);
+  }, [articles, searchQuery, statusFilter, categoryFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredAndSorted.length / ITEMS_PER_PAGE) || 1;
   
@@ -115,6 +129,17 @@ export default function ArticlesPage() {
               </select>
 
               <select 
+                value={categoryFilter} 
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-sky-200 bg-white"
+              >
+                <option value="all">All Categories</option>
+                {categories.map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+
+              <select 
                 value={sortBy} 
                 onChange={e => setSortBy(e.target.value as any)}
                 className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-sky-200 bg-white"
@@ -150,6 +175,11 @@ export default function ArticlesPage() {
                     <span className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${article.status === "published" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                       {article.status || "draft"}
                     </span>
+                    {article.category && (
+                      <span className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold bg-sky-100 text-sky-700 ml-2">
+                        {article.category}
+                      </span>
+                    )}
                     {article.status === "published" && (
                       <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         {article.viewCount || 0} views

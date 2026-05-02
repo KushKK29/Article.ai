@@ -18,6 +18,7 @@ type SavedArticlePayload = {
 export type SavedArticleRecord = {
   id: string;
   topic: string;
+  category?: string;
   createdAt: string;
   status?: "draft" | "published";
   slug?: string | null;
