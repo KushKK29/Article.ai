@@ -8,6 +8,7 @@ import CitationBadgeEnhancer from "@/components/CitationBadgeEnhancer";
 type PublishedArticle = {
   id: string;
   topic: string;
+  createdAt: string;
   slug?: string;
   status?: string;
   publishedAt?: string | null;
@@ -70,10 +71,12 @@ function AdsenseSlot({
   tone?: "best" | "strong" | "standard";
   className?: string;
 }) {
+  return null;
+  /*
   const toneClass: Record<"best" | "strong" | "standard", string> = {
-    best: "border-rose-200 bg-rose-50 text-rose-900",
-    strong: "border-amber-200 bg-amber-50 text-amber-900",
-    standard: "border-stone-200 bg-stone-50 text-stone-700"
+    best: "border-rose-200/50 bg-rose-50/10 text-rose-500",
+    strong: "border-amber-200/50 bg-amber-50/10 text-amber-500",
+    standard: "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]"
   };
 
   return (
@@ -85,6 +88,7 @@ function AdsenseSlot({
       <p className="mt-2 text-sm font-semibold leading-snug">{title}</p>
     </aside>
   );
+  */
 }
 
 function buildTableOfContents(article: PublishedArticle) {
@@ -246,7 +250,7 @@ export async function generateMetadata({
   }
 
   const title = article.payload?.structure?.h1 || article.payload?.meta?.title || article.topic;
-  const description = buildPublishedArticleDescription(article, title) || article.payload?.meta?.meta_description || `Read ${title} on ArticleShip.`;
+  const description = article.payload?.meta?.meta_description || buildPublishedArticleDescription(article, title) || `Read ${title} on ArticleShip.`;
 
   return {
     title,
@@ -298,8 +302,39 @@ export default async function BlogArticlePage({
 
   const adContext = compactText(article.payload?.keywords?.primary_keyword || title || "Article Insights");
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": title,
+    "description": description,
+    "image": heroImage?.url || recentPostFallbackImage,
+    "datePublished": article.publishedAt || article.createdAt,
+    "dateModified": article.publishedAt || article.createdAt,
+    "author": {
+      "@type": "Person",
+      "name": "Kush Goel",
+      "url": "https://articleship.com"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "ArticleShip",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://articleship.com/logo.png"
+      }
+    },
+    "mainEntityOfPage": {
+      "@type": "WebPage",
+      "@id": `https://articleship.com/blog/${slug}`
+    }
+  };
+
   return (
     <section className="scroll-smooth pt-8 pb-3 md:pt-12 md:pb-5">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="mx-auto w-full max-w-[1380px] px-3">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[300px_minmax(0,1fr)_280px] lg:gap-10 xl:gap-12">
           <aside className="order-2 hidden w-full lg:order-1 lg:block">
@@ -336,14 +371,14 @@ export default async function BlogArticlePage({
                 <span className="mb-4 inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-teal-700">
                   Featured
                 </span>
-                <h1 className="mb-3 text-balance text-3xl font-bold leading-tight text-stone-900 md:text-4xl">
+                <h1 className="mb-3 text-balance text-3xl font-bold leading-tight text-[var(--text-main)] md:text-4xl">
                   {title}
                 </h1>
                 {description ? (
-                  <p className="mb-4 text-base leading-relaxed text-stone-500">{description}</p>
+                  <p className="mb-4 text-base leading-relaxed text-[var(--text-muted)]">{description}</p>
                 ) : null}
-                <div className="flex flex-wrap items-center gap-3 text-sm text-stone-400">
-                  <span className="font-medium text-stone-600">By Kush Goel</span>
+                <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)] opacity-80">
+                  <span className="font-medium text-[var(--text-main)]">By Kush Goel</span>
                   <span>·</span>
                   <time>{publishedDate}</time>
                   <span>·</span>
@@ -363,7 +398,7 @@ export default async function BlogArticlePage({
                 </div>
               ) : null}
 
-              <div className="article-html prose-custom space-y-5 text-base leading-relaxed text-stone-700" dangerouslySetInnerHTML={{ __html: content }} />
+              <div className="article-html prose-custom space-y-5 text-base leading-relaxed text-[var(--text-main)]" dangerouslySetInnerHTML={{ __html: content }} />
 
               <AdsenseSlot
                 title="Ad Slot 2 - In-content"
@@ -401,13 +436,13 @@ export default async function BlogArticlePage({
                         <a
                           key={item.href}
                           href={item.href}
-                          className="block border-l-2 border-transparent py-1 pl-3 text-sm text-stone-500 transition-colors hover:border-teal-600 hover:text-teal-700"
+                          className="block border-l-2 border-transparent py-1 pl-3 text-sm text-[var(--text-muted)] transition-colors hover:border-teal-600 hover:text-teal-700"
                         >
                           {item.label}
                         </a>
                       ))
                   ) : (
-                    <p className="text-sm text-stone-500">No sections available.</p>
+                    <p className="text-sm text-[var(--text-muted)]">No sections available.</p>
                   )}
                 </nav>
               </div>
@@ -465,10 +500,12 @@ export default async function BlogArticlePage({
 
         {recentArticles.length > 0 ? (
           <>
-            <section className="mt-16 border-t border-stone-200 pt-12 md:pt-14">
+            <section className="mt-16 border-t border-[var(--border)] pt-12 md:pt-14">
               <div className="mb-8 flex items-center justify-between gap-4">
-                <h2 className="text-3xl font-bold tracking-tight text-stone-900">Recently published</h2>
-                <span className="text-sm font-semibold text-teal-700">View all articles →</span>
+                <h2 className="text-3xl font-bold tracking-tight text-[var(--text-main)]">Recently published</h2>
+                <Link href="/articles" className="text-sm font-semibold text-teal-700 hover:underline">
+                  View all articles →
+                </Link>
               </div>
 
               <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
@@ -499,11 +536,11 @@ export default async function BlogArticlePage({
                       </div>
 
                       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{recentCategory}</p>
-                      <h3 className="text-2xl font-bold leading-tight text-stone-900 transition-colors group-hover:text-teal-800">
+                      <h3 className="text-2xl font-bold leading-tight text-[var(--text-main)] transition-colors group-hover:text-teal-800">
                         {recentTitle}
                       </h3>
-                      <p className="mt-3 text-base leading-relaxed text-stone-500">{recentSummary}</p>
-                      <p className="mt-4 text-sm text-stone-400">
+                      <p className="mt-3 text-base leading-relaxed text-[var(--text-muted)]">{recentSummary}</p>
+                      <p className="mt-4 text-sm text-[var(--text-muted)] opacity-60">
                         {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
                       </p>
                     </Link>

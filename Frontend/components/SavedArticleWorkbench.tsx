@@ -32,6 +32,7 @@ type WorkbenchProps = {
   onSave: (articleId: string, nextTopic: string, nextPayload: SavedArticlePayload) => Promise<void>;
   onPublish: (articleId: string) => Promise<void>;
   onDelete: (articleId: string) => Promise<void>;
+  initialFocusMode?: boolean;
 };
 
 function sanitizeText(value: string) {
@@ -65,7 +66,13 @@ function ToolbarIcon({ label, children }: { label: string; children: React.React
   );
 }
 
-export default function SavedArticleWorkbench({ article, onSave, onPublish, onDelete }: WorkbenchProps) {
+export default function SavedArticleWorkbench({ 
+  article, 
+  onSave, 
+  onPublish, 
+  onDelete,
+  initialFocusMode = false 
+}: WorkbenchProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorViewportRef = useRef<HTMLDivElement | null>(null);
   const [topic, setTopic] = useState("");
@@ -80,7 +87,7 @@ export default function SavedArticleWorkbench({ article, onSave, onPublish, onDe
   const [saving, setSaving] = useState(false);
   const [originalHtml, setOriginalHtml] = useState("");
   const [showDiffModal, setShowDiffModal] = useState(false);
-  const [focusMode, setFocusMode] = useState(false);
+  const [focusMode, setFocusMode] = useState(initialFocusMode);
   const [tocHeadings, setTocHeadings] = useState<{ id: string; text: string; level: number }[]>([]);
 
   const wordCount = useMemo(() => {

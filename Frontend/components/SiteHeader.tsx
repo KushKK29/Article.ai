@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import ThemeToggle from "./ThemeToggle";
 
 const navItems = [
   { href: "/articles", label: "All Articles" },
@@ -58,20 +59,20 @@ export default function SiteHeader() {
 
   return (
     <header
-      className={`sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur transition-transform duration-300 ${
+      className={`sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/85 backdrop-blur transition-transform duration-300 ${
         isHidden ? "-translate-y-full" : "translate-y-0"
       }`}
     >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 md:px-8">
         <Link href="/" className="group flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white shadow-sm transition group-hover:bg-slate-800">
-            AS
+            KG
           </span>
           <span>
-            <span className="block text-sm font-semibold uppercase tracking-[0.22em] text-sky-700">
-              ArticleShip
+            <span className="block text-sm font-semibold uppercase tracking-[0.22em] text-emerald-700">
+              Kush Goel
             </span>
-            <span className="block text-sm text-slate-500">AI SEO content studio</span>
+            <span className="block text-sm text-slate-500">Tech & SEO Insights</span>
           </span>
         </Link>
 
@@ -94,26 +95,30 @@ export default function SiteHeader() {
           })}
         </nav>
 
-        <details className="relative md:hidden">
-          <summary className="list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
-            Menu
-          </summary>
-          <div className="absolute right-0 mt-3 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
-            {navItems.map((item) => {
-              const active = isActivePath(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block rounded-xl px-3 py-2 text-sm font-medium transition ${active ? "bg-sky-100 text-sky-900" : "text-slate-700 hover:bg-slate-50"
-                    }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        </details>
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          
+          <details className="relative md:hidden">
+            <summary className="list-none rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+              Menu
+            </summary>
+            <div className="absolute right-0 mt-3 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+              {navItems.map((item) => {
+                const active = isActivePath(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`block rounded-xl px-3 py-2 text-sm font-medium transition ${active ? "bg-emerald-100 text-emerald-900" : "text-slate-700 hover:bg-slate-50"
+                      }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </details>
+        </div>
       </div>
     </header>
   );

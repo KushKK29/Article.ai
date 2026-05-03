@@ -17,9 +17,11 @@ const space = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "ArticleShip Studio",
-  description: "AI SEO content generation workspace"
+  title: "Kush Goel | Tech & SEO Insights",
+  description: "A personal publication documenting deep dives into software engineering, technical SEO, and digital growth."
 };
+
+import { ThemeProvider } from "@/lib/ThemeContext";
 
 export default function RootLayout({
   children
@@ -29,9 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${manrope.variable} ${space.variable}`}>
-        <div className="min-h-screen">
-          <SiteHeader />
-          {children}
+        <ThemeProvider>
+          <div className="min-h-screen">
+            <SiteHeader />
+            {children}
           <footer className="mt-20 bg-[#141110] text-stone-300">
             <div className="mx-auto w-full max-w-6xl px-6 py-14 md:py-16">
               <div className="grid grid-cols-1 gap-12 md:grid-cols-12">
@@ -93,7 +96,8 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
-        </div>
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );
