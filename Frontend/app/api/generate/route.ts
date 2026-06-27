@@ -80,33 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = await backendResponse.json();
-    const seo = payload.seo_data ?? {};
-    const blocks: ContentBlock[] = payload.blocks ?? [];
-    const structure = buildStructureFromBlocks(blocks);
-
-    const images = blocks
-      .filter((block) => !!block.image?.url)
-      .map((block) => ({
-        heading: block.heading.replace(/^#+\s*/, "").trim(),
-        url: block.image?.url ?? "",
-        alt: block.image?.alt ?? "",
-        caption: block.image?.credit ? `Image credit: ${block.image.credit}` : "Generated image"
-      }));
-
-    return NextResponse.json({
-      keywords: {
-        primary_keyword: seo.primary_keyword ?? "",
-        secondary_keywords: seo.secondary_keywords ?? [],
-        long_tail_keywords: seo.long_tail_keywords ?? [],
-        lsi_keywords: seo.lsi_keywords ?? [],
-        search_intent: seo.search_intent ?? "Informational"
-      },
-      structure,
-      content: payload.html ?? "",
-      images,
-      blocks,
-      meta: payload.meta ?? {}
-    });
+    return NextResponse.json({ job_id: payload.job_id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown generation error";
     return NextResponse.json({ error: message }, { status: 500 });

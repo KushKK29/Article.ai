@@ -4,6 +4,8 @@ import Link from "next/link";
 import { getBackendUrl } from "@/lib/backend";
 import ArticleViewTracker from "@/components/ArticleViewTracker";
 import CitationBadgeEnhancer from "@/components/CitationBadgeEnhancer";
+import PrintActions from "@/components/PrintActions";
+import ManuscriptFolio from "@/components/ManuscriptFolio";
 
 type PublishedArticle = {
   id: string;
@@ -62,35 +64,6 @@ type TableOfContentsItem = {
   level: 2 | 3 | 4;
 };
 
-function AdsenseSlot({
-  title,
-  tone = "standard",
-  className = ""
-}: {
-  title: string;
-  tone?: "best" | "strong" | "standard";
-  className?: string;
-}) {
-  return null;
-  /*
-  const toneClass: Record<"best" | "strong" | "standard", string> = {
-    best: "border-rose-200/50 bg-rose-50/10 text-rose-500",
-    strong: "border-amber-200/50 bg-amber-50/10 text-amber-500",
-    standard: "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]"
-  };
-
-  return (
-    <aside
-      className={`rounded-xl border-2 border-dashed p-4 ${toneClass[tone]} ${className}`}
-      aria-label={title}
-    >
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em]">Google AdSense</p>
-      <p className="mt-2 text-sm font-semibold leading-snug">{title}</p>
-    </aside>
-  );
-  */
-}
-
 function buildTableOfContents(article: PublishedArticle) {
   const toc: TableOfContentsItem[] = [];
   const structure = article.payload?.structure;
@@ -114,6 +87,21 @@ function buildTableOfContents(article: PublishedArticle) {
   return toc;
 }
 
+function injectHeadingIds(html: string) {
+  if (!html) return "";
+  
+  return html.replace(/<(h[234])(\b[^>]*?)>([\s\S]*?)<\/h\1>/gi, (match, tag, attrs, text) => {
+    const cleanText = text.replace(/<[^>]+>/g, "").replace(/&[^;]+;/g, "");
+    const id = slugifyHeading(cleanText);
+    
+    if (attrs.includes("id=")) {
+      return match;
+    }
+    
+    return `<${tag}${attrs} id="${id}">${text}</${tag}>`;
+  });
+}
+
 function normalizePublishedArticleHtml(html: string) {
   if (!html) return "";
 
@@ -121,7 +109,9 @@ function normalizePublishedArticleHtml(html: string) {
   const innerHtml = shellMatch?.[1] ?? html;
 
   // Keep a single source of truth for the title: the page header above the article HTML.
-  return innerHtml.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>\s*/gi, "");
+  const withoutTitle = innerHtml.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>\s*/gi, "");
+  
+  return injectHeadingIds(withoutTitle);
 }
 
 function buildPublishedArticleDescription(article: PublishedArticle, title: string) {
@@ -137,13 +127,13 @@ function buildPublishedArticleDescription(article: PublishedArticle, title: stri
   const keywords = Array.from(new Set(keywordPool)).slice(0, 3);
   const normalizedTitle = compactText(title).toLowerCase();
   const topic = compactText(article.topic || "");
-  const subject = topic && topic.toLowerCase() !== normalizedTitle ? topic : "modern software teams";
+  const subject = topic && topic.toLowerCase() !== normalizedTitle ? topic : "modern systems";
 
   if (keywords.length > 0) {
-    return compactText(`Practical insights on ${keywords.join(", ")} for ${subject}.`);
+    return compactText(`Archival study regarding ${keywords.join(", ")} within ${subject}.`);
   }
 
-  return compactText(`Practical guidance on AI-assisted software engineering workflows for ${subject}.`);
+  return compactText(`Archival documentation regarding ${subject}.`);
 }
 
 function stripHtml(value: string) {
@@ -156,10 +146,10 @@ function estimateReadingMinutes(contentHtml: string) {
 }
 
 function formatPublishedDate(value?: string | null) {
-  if (!value) return "Unpublished";
+  if (!value) return "Manuscript Proof";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unpublished";
+  if (Number.isNaN(date.getTime())) return "Manuscript Proof";
 
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
@@ -169,10 +159,10 @@ function formatPublishedDate(value?: string | null) {
 }
 
 function formatCompactDate(value?: string | null) {
-  if (!value) return "Unpublished";
+  if (!value) return "Manuscript Proof";
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unpublished";
+  if (Number.isNaN(date.getTime())) return "Manuscript Proof";
 
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
@@ -300,8 +290,6 @@ export default async function BlogArticlePage({
 
   const recentPostFallbackImage = "https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=900&h=500&fit=crop";
 
-  const adContext = compactText(article.payload?.keywords?.primary_keyword || title || "Article Insights");
-
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -330,89 +318,115 @@ export default async function BlogArticlePage({
   };
 
   return (
-    <section className="scroll-smooth pt-8 pb-3 md:pt-12 md:pb-5">
+    <section className="scroll-smooth bg-[#F4F6F9] text-[#0B132B] min-h-screen py-16 selection:bg-[#FEF08A] selection:text-[#0B132B]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <div className="mx-auto w-full max-w-[1380px] px-3">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[300px_minmax(0,1fr)_280px] lg:gap-10 xl:gap-12">
-          <aside className="order-2 hidden w-full lg:order-1 lg:block">
-            <div className="space-y-6 lg:sticky lg:top-8">
-              <AdsenseSlot
-                title={`Left Ad 1 - ${adContext}`}
-                tone="best"
-                className="min-h-[280px]"
-              />
-              <AdsenseSlot
-                title={`Left Ad 2 - ${adContext}`}
-                tone="strong"
-                className="min-h-[280px]"
-              />
-              <AdsenseSlot
-                title={`Left Ad 3 - ${adContext}`}
-                className="min-h-[280px]"
-              />
+      <div className="mx-auto w-full max-w-[1380px] px-6">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[260px_minmax(0,1fr)_260px]">
+          
+          {/* Left Editorial Metadata Panel */}
+          <aside className="order-2 lg:order-1 hidden lg:block">
+            <div className="space-y-8 lg:sticky lg:top-12 border-r border-[#0B132B]/10 pr-6">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-[#4B5563] space-y-4">
+                <div>
+                  <span className="block font-bold text-[#0B132B]">Publisher</span>
+                  <span className="block mt-1">ArticleShip House</span>
+                </div>
+                <div>
+                  <span className="block font-bold text-[#0B132B]">Series</span>
+                  <span className="block mt-1">{article.payload?.keywords?.primary_keyword || "Technical Dispatch"}</span>
+                </div>
+                <div>
+                  <span className="block font-bold text-[#0B132B]">Composition</span>
+                  <span className="block mt-1">Stagger Run Engine</span>
+                </div>
+                <div>
+                  <span className="block font-bold text-[#0B132B]">Format</span>
+                  <span className="block mt-1">Typeset Galley Proof</span>
+                </div>
+              </div>
             </div>
           </aside>
 
+          {/* Central Main Article Thread */}
           <main className="order-1 w-full lg:order-2">
-            <article className="mx-auto mb-16 w-full max-w-3xl">
+            <article className="mx-auto w-full max-w-[65ch]">
               <ArticleViewTracker articleId={article.id} />
               <CitationBadgeEnhancer />
 
-              <AdsenseSlot
-                title="Ad Slot 1 - Header / Top Content"
-                tone="best"
-                className="mb-8"
-              />
-
-              <div className="mb-6">
-                <span className="mb-4 inline-block rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-teal-700">
-                  Featured
+              {/* Byline and Category Flag */}
+              <div className="mb-6 font-mono text-[10px] uppercase tracking-widest">
+                <span className="bg-[#FEF08A] text-[#0B132B] border border-[#0B132B]/20 px-2 py-0.5 font-bold">
+                  {article.payload?.keywords?.primary_keyword || "Editorial"}
                 </span>
-                <h1 className="mb-3 text-balance text-3xl font-bold leading-tight text-[var(--text-main)] md:text-4xl">
-                  {title}
-                </h1>
-                {description ? (
-                  <p className="mb-4 text-base leading-relaxed text-[var(--text-muted)]">{description}</p>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)] opacity-80">
-                  <span className="font-medium text-[var(--text-main)]">By Kush Goel</span>
-                  <span>·</span>
-                  <time>{publishedDate}</time>
-                  <span>·</span>
-                  <span>{readingTime} min read</span>
-                </div>
+                <span className="ml-3 text-[#4B5563]">Composition Dispatch</span>
               </div>
 
+              {/* Headline */}
+              <h1 className="mb-6 text-balance font-serif text-3xl md:text-4xl font-extrabold leading-tight text-[#0B132B] tracking-tight">
+                {title}
+              </h1>
+
+              {/* Deck / Abstract */}
+              {description ? (
+                <p className="mb-8 font-serif text-lg leading-relaxed text-[#4B5563] italic border-l-2 border-[#0B132B]/20 pl-4">
+                  {description}
+                </p>
+              ) : null}
+
+              {/* Author & Chronology Block */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-[#0B132B]/10 pb-4 mb-8 font-mono text-[10px] uppercase tracking-widest text-[#4B5563]">
+                <span className="font-bold text-[#0B132B]">By Kush Goel</span>
+                <span>·</span>
+                <time>{publishedDate}</time>
+                <span>·</span>
+                <span>{readingTime} min read</span>
+              </div>
+
+              {/* Print Action Controller */}
+              <PrintActions />
+
+              {/* Mobile Manuscript Folio */}
+              <div className="block lg:hidden mb-8 border-2 border-[#0B132B] p-4 bg-white shadow-[2px_2px_0px_rgba(11,19,43,1)]">
+                <h3 className="border-b border-[#0B132B]/10 pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#0B132B] mb-4">
+                  Folio Index
+                </h3>
+                <ManuscriptFolio items={tableOfContents} />
+              </div>
+
+              {/* Hero Plate Illustration */}
               {shouldRenderHeroImage && heroImage?.url ? (
-                <div className="mb-8 overflow-hidden rounded-xl border border-stone-200">
+                <div className="mb-10 overflow-hidden rounded-2xl border-2 border-[#0B132B]/10 bg-[#0B132B]/5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={heroImage.url}
                     alt={heroImage.alt || title}
-                    className="h-64 w-full object-cover md:h-80"
+                    className="w-full object-cover max-h-[400px] filter grayscale hover:grayscale-0 transition duration-300"
                     loading="lazy"
                   />
+                  {heroImage.caption && (
+                    <div className="p-3 bg-white border-t border-[#0B132B]/10 font-mono text-[10px] text-[#4B5563] uppercase tracking-wider text-center">
+                      Plate: {heroImage.caption}
+                    </div>
+                  )}
                 </div>
               ) : null}
 
-              <div className="article-html prose-custom space-y-5 text-base leading-relaxed text-[var(--text-main)]" dangerouslySetInnerHTML={{ __html: content }} />
-
-              <AdsenseSlot
-                title="Ad Slot 2 - In-content"
-                tone="strong"
-                className="mt-10 hidden lg:block"
+              {/* Typographic Core Body Content */}
+              <div 
+                className="article-html font-sans text-base leading-relaxed text-[#0B132B] space-y-6 prose prose-stone prose-md max-w-none" 
+                dangerouslySetInnerHTML={{ __html: content }} 
               />
 
               {tags.length > 0 ? (
-                <div className="mt-10 flex flex-wrap gap-2 border-t border-stone-200 pt-8">
-                  <span className="mr-2 self-center text-xs font-semibold uppercase tracking-wider text-stone-400">Tags:</span>
+                <div className="mt-12 flex flex-wrap gap-2 border-t border-[#0B132B]/10 pt-8 font-mono text-[10px] uppercase tracking-widest">
+                  <span className="mr-2 self-center font-bold text-[#0B132B]">Indices:</span>
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600"
+                      className="border border-[#0B132B]/20 bg-white px-2 py-1 text-[#4B5563]"
                     >
                       {tag}
                     </span>
@@ -422,141 +436,65 @@ export default async function BlogArticlePage({
             </article>
           </main>
 
-          <aside className="order-3 w-full lg:pl-3 xl:pl-4">
-            <div className="space-y-10 lg:sticky lg:top-8">
-              <div>
-                <h3 className="border-b border-stone-200 pb-1 text-xs font-bold uppercase tracking-widest text-stone-400">
-                  Jump to section
+          {/* Right Literary Index Column (Table of Contents) */}
+          <aside className="order-3 w-full lg:block hidden">
+            <div className="space-y-8 lg:sticky lg:top-12 border-l border-[#0B132B]/10 pl-6">
+              <div className="space-y-3">
+                <h3 className="border-b border-[#0B132B]/10 pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#0B132B]">
+                  Folio Index
                 </h3>
-                <nav className="space-y-1">
-                  {tableOfContents.length > 0 ? (
-                    tableOfContents
-                      .filter((item) => item.level === 2)
-                      .map((item) => (
-                        <a
-                          key={item.href}
-                          href={item.href}
-                          className="block border-l-2 border-transparent py-1 pl-3 text-sm text-[var(--text-muted)] transition-colors hover:border-teal-600 hover:text-teal-700"
-                        >
-                          {item.label}
-                        </a>
-                      ))
-                  ) : (
-                    <p className="text-sm text-[var(--text-muted)]">No sections available.</p>
-                  )}
-                </nav>
+                <ManuscriptFolio items={tableOfContents} />
               </div>
-
-              <AdsenseSlot
-                title={`Right Ad - ${adContext}`}
-                tone="strong"
-                className="min-h-[250px]"
-              />
-
-              {/*
-              <div className="rounded-xl border border-stone-200 bg-white p-6">
-                <h3 className="mb-5 text-xs font-bold uppercase tracking-widest text-stone-400">Categories</h3>
-                <div className="space-y-2">
-                  {[
-                    { label: "AI & Machine Learning", count: 12 },
-                    { label: "No-Code / Low-Code", count: 8 },
-                    { label: "Software Architecture", count: 15 },
-                    { label: "Developer Tools", count: 10 },
-                    { label: "Career & Growth", count: 6 },
-                    { label: "Honest Reviews", count: 9 }
-                  ].map((category) => (
-                    <span
-                      key={category.label}
-                      className="flex items-center justify-between border-b border-stone-100 py-2 text-sm text-stone-600 last:border-0"
-                    >
-                      <span>{category.label}</span>
-                      <span className="rounded-full bg-stone-50 px-2 py-0.5 text-xs text-stone-400">{category.count}</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-              */}
-
-              {/*
-              <div className="rounded-xl border border-teal-100 bg-teal-50 p-6">
-                <h3 className="mb-2 text-sm font-bold text-stone-900">Stay in the loop</h3>
-                <p className="mb-4 text-sm leading-relaxed text-stone-500">
-                  Honest dev insights, no fluff. Delivered when there&apos;s something worth reading.
-                </p>
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  className="mb-3 w-full rounded-lg border border-teal-200 bg-white px-4 py-2.5 text-sm text-stone-800 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-300"
-                />
-                <button className="w-full rounded-lg bg-teal-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-800">
-                  Subscribe
-                </button>
-              </div>
-              */}
-
             </div>
           </aside>
         </div>
 
+        {/* Recently Published Section */}
         {recentArticles.length > 0 ? (
-          <>
-            <section className="mt-16 border-t border-[var(--border)] pt-12 md:pt-14">
-              <div className="mb-8 flex items-center justify-between gap-4">
-                <h2 className="text-3xl font-bold tracking-tight text-[var(--text-main)]">Recently published</h2>
-                <Link href="/articles" className="text-sm font-semibold text-teal-700 hover:underline">
-                  View all articles →
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-                {recentArticles.slice(0, 3).map((recentArticle) => {
-                  const recentTitle =
-                    recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
-                  const recentContent = normalizePublishedArticleHtml(recentArticle.payload?.content || "");
-                  const recentSummary =
-                    recentArticle.payload?.meta?.meta_description || stripHtml(recentContent).slice(0, 140).trim() || "Read the full article for practical insights.";
-                  const recentCategory = compactText(recentArticle.payload?.keywords?.primary_keyword || "AI Development") || "AI Development";
-                  const recentImage = recentPostFallbackImage;
-                  const recentReadMinutes = estimateReadingMinutes(recentContent);
-
-                  return (
-                    <Link
-                      key={recentArticle.id}
-                      href={`/blog/${recentArticle.slug}`}
-                      className="group block"
-                    >
-                      <div className="mb-4 overflow-hidden rounded-xl border border-stone-200">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={recentImage}
-                          alt={recentTitle}
-                          className="h-44 w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-                          loading="lazy"
-                        />
-                      </div>
-
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">{recentCategory}</p>
-                      <h3 className="text-2xl font-bold leading-tight text-[var(--text-main)] transition-colors group-hover:text-teal-800">
-                        {recentTitle}
-                      </h3>
-                      <p className="mt-3 text-base leading-relaxed text-[var(--text-muted)]">{recentSummary}</p>
-                      <p className="mt-4 text-sm text-[var(--text-muted)] opacity-60">
-                        {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
-                      </p>
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-
-            <div className="mx-auto mt-4 w-full max-w-4xl">
-              <AdsenseSlot
-                title="Ad Slot 5 - After Recently Published"
-                tone="strong"
-                className="min-h-[72px]"
-              />
+          <section className="mt-20 border-t-2 border-[#0B132B] pt-12">
+            <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
+              <h2 className="font-serif text-2xl font-extrabold text-[#0B132B]">Recent Technical Dispatches</h2>
+              <Link href="/articles" className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A] hover:underline">
+                All Archives →
+              </Link>
             </div>
-          </>
+
+            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+              {recentArticles.slice(0, 3).map((recentArticle) => {
+                const recentTitle =
+                  recentArticle.payload?.structure?.h1 || recentArticle.payload?.meta?.title || recentArticle.topic;
+                const recentContent = normalizePublishedArticleHtml(recentArticle.payload?.content || "");
+                const recentSummary =
+                  recentArticle.payload?.meta?.meta_description || stripHtml(recentContent).slice(0, 140).trim() || "Read the complete technical dispatch.";
+                const recentCategory = compactText(recentArticle.payload?.keywords?.primary_keyword || "Technical") || "Technical";
+                const recentReadMinutes = estimateReadingMinutes(recentContent);
+
+                return (
+                  <Link
+                    key={recentArticle.id}
+                    href={`/blog/${recentArticle.slug}`}
+                    className="group block bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] hover:shadow-[3px_3px_0px_rgba(29,78,216,1)] transition-all font-serif"
+                  >
+                    <span className="mb-2 block font-mono text-[9px] font-bold uppercase tracking-widest text-[#1D4ED8]">
+                      {recentCategory}
+                    </span>
+                    
+                    <h3 className="text-lg font-extrabold leading-tight text-[#0B132B] group-hover:underline">
+                      {recentTitle}
+                    </h3>
+                    
+                    <p className="mt-3 text-xs leading-relaxed text-[#4B5563] line-clamp-3">
+                      {recentSummary}
+                    </p>
+                    
+                    <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-[#4B5563]/60">
+                      {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
       </div>
     </section>

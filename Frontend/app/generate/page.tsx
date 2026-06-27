@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import ArticleEditor from "@/components/ArticleEditor";
 import ImageGallery from "@/components/ImageGallery";
 import KeywordsPanel from "@/components/KeywordsPanel";
@@ -76,27 +77,27 @@ function ToastBar({
     <div className="fixed right-4 top-4 z-50 flex w-[330px] flex-col gap-2">
       {toasts.map((toast) => {
         const tone: Record<ToastType, string> = {
-          success: "border-emerald-200 bg-emerald-50 text-emerald-800",
-          error: "border-red-200 bg-red-50 text-red-800",
-          info: "border-sky-200 bg-sky-50 text-sky-800"
+          success: "border-[#0B132B] bg-[#FEF08A] text-[#0B132B] shadow-[2px_2px_0px_rgba(11,19,43,1)]",
+          error: "border-[#0B132B] bg-rose-50 text-rose-800 shadow-[2px_2px_0px_rgba(11,19,43,1)]",
+          info: "border-[#0B132B] bg-sky-50 text-[#1E3A8A] shadow-[2px_2px_0px_rgba(11,19,43,1)]"
         };
         return (
           <div
             key={toast.id}
-            className={`rounded-lg border px-3 py-2 text-sm shadow-card ${tone[toast.type]}`}
+            className={`rounded-none border-2 px-4 py-3 text-xs font-mono uppercase tracking-wider ${tone[toast.type]}`}
             role="status"
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-semibold">{toast.title}</p>
-                {toast.description ? <p className="text-xs opacity-90">{toast.description}</p> : null}
+                <p className="font-bold">{toast.title}</p>
+                {toast.description ? <p className="text-[10px] mt-1 normal-case font-sans text-[#4B5563]">{toast.description}</p> : null}
               </div>
               <button
                 type="button"
                 onClick={() => removeToast(toast.id)}
-                className="text-xs font-semibold"
+                className="text-[10px] font-bold underline"
               >
-                Close
+                Dismiss
               </button>
             </div>
           </div>
@@ -107,6 +108,7 @@ function ToastBar({
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [topic, setTopic] = useState("");
   const [keywords, setKeywords] = useState<KeywordBundle | null>(null);
   const [structure, setStructure] = useState<ArticleStructure | null>(null);
@@ -126,6 +128,10 @@ export default function HomePage() {
   const [isPersistingDraft, setIsPersistingDraft] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [aiGenerated, setAiGenerated] = useState(false);
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [autoPublish, setAutoPublish] = useState(false);
+  const [scheduledJobs, setScheduledJobs] = useState<any[]>([]);
   const [autoFocusOnLoad, setAutoFocusOnLoad] = useState(false);
   const autosaveErrorAtRef = useRef(0);
 
@@ -359,6 +365,81 @@ export default function HomePage() {
     };
   }, [hasUnsavedChanges]);
 
+  const fetchScheduledJobs = async () => {
+    try {
+      const response = await fetch("/api/jobs?status=scheduled", { cache: "no-store" });
+      if (response.ok) {
+        const data = await response.json();
+        setScheduledJobs(data.jobs || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch scheduled jobs:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchScheduledJobs();
+  }, []);
+
+  const handleSchedule = async () => {
+    if (!topic.trim() || !scheduledAt) {
+      addToast("error", "Invalid Submission", "Topic and scheduled time are required");
+      return;
+    }
+    setLoading(true);
+    try {
+      const localDate = new Date(scheduledAt);
+      const isoString = localDate.toISOString();
+
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic,
+          scheduled_at: isoString,
+          auto_publish: autoPublish,
+          image_source: aiGenerated ? "ai_generated" : "stock"
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to schedule article");
+      }
+
+      addToast("success", "Article Scheduled", `Article has been successfully scheduled for ${localDate.toLocaleString()}`);
+      setTopic("");
+      setIsScheduled(false);
+      setScheduledAt("");
+      setAutoPublish(false);
+      
+      await fetchScheduledJobs();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown scheduling error";
+      addToast("error", "Scheduling Failed", message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelJob = async (jobId: string) => {
+    try {
+      const response = await fetch(`/api/jobs/${jobId}`, {
+        method: "DELETE"
+      });
+      if (response.ok) {
+        addToast("success", "Job Cancelled", "The scheduled article generation was cancelled.");
+        await fetchScheduledJobs();
+      } else {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to cancel job");
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      addToast("error", "Cancellation Failed", message);
+    }
+  };
+
   const generate = async () => {
     if (!topic.trim()) {
       addToast("error", "Topic is required", "Enter a topic before generating");
@@ -366,12 +447,6 @@ export default function HomePage() {
     }
 
     setLoading(true);
-    setCurrentStep(0);
-
-    const timer = setInterval(() => {
-      setCurrentStep((prev) => (prev < STEPS.length - 1 ? prev + 1 : prev));
-    }, 1800);
-
     try {
       const response = await fetch("/api/generate", {
         method: "POST",
@@ -384,20 +459,16 @@ export default function HomePage() {
         throw new Error(errorPayload.error || "Generation failed");
       }
 
-      const data: GenerateApiResponse = await response.json();
-      setKeywords(data.keywords);
-      setStructure(data.structure);
-      setMeta(data.meta ?? null);
-      setContent(data.content);
-      setImages(data.images);
-      setBlocks(data.blocks || []);
-      setCurrentStep(STEPS.length);
-      addToast("success", "Article generated", "Your SEO content package is ready");
+      const data = await response.json();
+      if (data.job_id) {
+        addToast("success", "Job submitted", "Redirecting to tracking page...");
+        router.push(`/generate/job/${data.job_id}`);
+      } else {
+        throw new Error(data.error || "Failed to submit job");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      addToast("error", "Generation failed", message);
-    } finally {
-      clearInterval(timer);
+      addToast("error", "Submission failed", message);
       setLoading(false);
     }
   };
@@ -560,26 +631,30 @@ export default function HomePage() {
   }, [loading, currentStep]);
 
   return (
-    <main className="min-h-screen px-4 py-6 md:px-8 lg:px-12">
+    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-12 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
       <ToastBar toasts={toasts} removeToast={removeToast} />
 
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-6 lg:grid-cols-[230px_1fr]">
+      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-8 lg:grid-cols-[260px_1fr] items-start">
+        {/* Sidebar Column */}
         <div className="space-y-6">
-          <aside className="glass-card h-fit rounded-2xl p-4">
-            <h1 className="mb-4 text-xl font-bold tracking-tight text-slatebrand">ArticleShip</h1>
-            <nav className="space-y-2 text-sm">
+          <aside className="bg-white border-2 border-[#0B132B] rounded-2xl p-5 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
+            <h2 className="mb-4 text-lg font-extrabold tracking-tight border-b border-[#0B132B]/10 pb-3 uppercase text-[#0B132B]">
+              Manuscript Desk
+            </h2>
+            <nav className="space-y-2 text-xs font-mono uppercase tracking-wider font-bold">
               <button
                 type="button"
                 onClick={() => {
                   if (activeTab !== "dashboard" && !confirmDiscardChanges()) return;
                   setActiveTab("dashboard");
                 }}
-                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "dashboard"
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-700 hover:bg-slate-100"
-                  }`}
+                className={`w-full rounded-none border-2 px-4 py-2.5 text-left transition ${
+                  activeTab === "dashboard"
+                    ? "bg-[#0B132B] text-white border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
+                    : "bg-white border-transparent text-[#0B132B] hover:bg-[#0B132B]/5"
+                }`}
               >
-                Dashboard
+                Desk Overview
               </button>
               <button
                 type="button"
@@ -587,26 +662,33 @@ export default function HomePage() {
                   if (activeTab !== "articles" && !confirmDiscardChanges()) return;
                   setActiveTab("articles");
                 }}
-                className={`w-full rounded-lg px-3 py-2 text-left font-semibold transition ${activeTab === "articles"
-                    ? "bg-slate-900 text-white"
-                    : "bg-white text-slate-700 hover:bg-slate-100"
-                  }`}
+                className={`w-full rounded-none border-2 px-4 py-2.5 text-left transition ${
+                  activeTab === "articles"
+                    ? "bg-[#0B132B] text-white border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
+                    : "bg-white border-transparent text-[#0B132B] hover:bg-[#0B132B]/5"
+                }`}
               >
-                My Articles
+                Manuscript Archive
               </button>
               <Link
-                href="/articles"
-                className="block w-full rounded-lg px-3 py-2 text-left font-semibold text-sky-700 hover:bg-sky-50 transition"
+                href="/generate/batch"
+                className="block w-full rounded-none border-2 border-transparent px-4 py-2.5 text-left transition text-[#0B132B] hover:bg-[#0B132B]/5"
               >
-                View all articles &rarr;
+                Batch Queue
+              </Link>
+              <Link
+                href="/articles"
+                className="block w-full rounded-none border-2 border-[#0B132B] px-4 py-2.5 text-left transition text-[#1E3A8A] hover:bg-[#1D4ED8]/5 font-bold shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none"
+              >
+                Live Blog Archive &rarr;
               </Link>
             </nav>
           </aside>
 
           {activeTab === "articles" ? (
-            <aside className="glass-card rounded-2xl p-6 xl:max-h-[calc(100vh-220px)] xl:overflow-hidden">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold text-slatebrand">My Articles</h2>
+            <aside className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:max-h-[calc(100vh-220px)] xl:overflow-hidden">
+              <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#0B132B]/10 pb-3">
+                <h2 className="text-md font-extrabold uppercase text-[#0B132B]">Manuscripts</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -614,7 +696,7 @@ export default function HomePage() {
                     setSelectedArticleId(null);
                     resetDraftComposer();
                   }}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700"
+                  className="rounded-none border-2 border-[#0B132B] bg-white px-3 py-1 text-[10px] font-mono font-bold uppercase text-[#0B132B] shadow-[1.5px_1.5px_0px_rgba(11,19,43,1)] hover:shadow-none transition-all active:translate-x-0.5 active:translate-y-0.5"
                 >
                   New Draft
                 </button>
@@ -622,14 +704,13 @@ export default function HomePage() {
 
               {savedArticlesLoading ? (
                 <div className="space-y-3">
-                  <div className="skeleton h-16 w-full rounded-xl" />
-                  <div className="skeleton h-16 w-full rounded-xl" />
-                  <div className="skeleton h-16 w-full rounded-xl" />
+                  <div className="h-16 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
+                  <div className="h-16 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
                 </div>
               ) : savedArticlesFetchFailed ? (
-                <p className="text-sm text-rose-600">Failed to load articles. Please refresh and try again.</p>
+                <p className="text-xs font-mono uppercase text-rose-700">Failed to load manuscript queue.</p>
               ) : savedArticles.length === 0 ? (
-                <p className="text-sm text-slate-500">No saved articles yet.</p>
+                <p className="text-xs font-mono uppercase text-[#4B5563]">No manuscripts generated yet.</p>
               ) : (
                 <ul className="space-y-3 xl:max-h-[calc(100vh-320px)] xl:overflow-y-auto xl:pr-1">
                   {savedArticles.map((article) => {
@@ -637,8 +718,9 @@ export default function HomePage() {
                     return (
                       <li
                         key={article.id}
-                        className={`rounded-xl border bg-white p-3 transition ${isSelected ? "border-sky-300 ring-2 ring-sky-100" : "border-slate-200"
-                          }`}
+                        className={`rounded-none border-2 bg-white p-3 transition ${
+                          isSelected ? "border-[#1D4ED8] shadow-[2.5px_2.5px_0px_rgba(29,78,216,1)]" : "border-[#0B132B] hover:shadow-[2px_2px_0px_rgba(11,19,43,1)]"
+                        }`}
                       >
                         <button
                           type="button"
@@ -646,30 +728,31 @@ export default function HomePage() {
                             if (!confirmDiscardChanges()) return;
                             setSelectedArticleId(article.id);
                           }}
-                          className="w-full text-left"
+                          className="w-full text-left font-mono"
                         >
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-800">{article.topic}</p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#0B132B]/5 pb-1">
+                            <span className="font-bold text-[#0B132B] text-xs leading-tight truncate max-w-[130px]">{article.topic}</span>
                             <span
-                              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${article.status === "published"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-amber-100 text-amber-700"
-                                }`}
+                              className={`px-1.5 py-0.5 text-[9px] font-bold border border-[#0B132B]/20 uppercase tracking-wide ${
+                                article.status === "published"
+                                  ? "bg-slate-100 text-[#0B132B]"
+                                  : "bg-[#FEF08A] text-[#0B132B]"
+                              }`}
                             >
                               {article.status || "draft"}
                             </span>
                           </div>
-                          <p className="mt-1 text-xs text-slate-500">{new Date(article.createdAt).toLocaleString()}</p>
+                          <p className="mt-1 text-[10px] text-[#4B5563]">{new Date(article.createdAt).toLocaleString()}</p>
                           {article.status === "published" ? (
-                            <p className="mt-1 text-xs font-medium text-slate-600">Views: {(article.viewCount ?? 0).toLocaleString()}</p>
+                            <p className="mt-1 text-[10px] font-bold text-[#1E3A8A]">VIEWS: {(article.viewCount ?? 0).toLocaleString()}</p>
                           ) : null}
                           {article.slug ? (
                             <a
                               href={`/blog/${article.slug}`}
-                              className="mt-1 inline-block text-xs font-semibold text-sky-700 underline underline-offset-2"
+                              className="mt-2 inline-block text-[10px] font-bold text-[#1D4ED8] underline hover:text-[#1E3A8A]"
                               onClick={(event) => event.stopPropagation()}
                             >
-                              View live
+                              Open Live Proof
                             </a>
                           ) : null}
                         </button>
@@ -682,8 +765,9 @@ export default function HomePage() {
           ) : null}
         </div>
 
+        {/* Content Column */}
         {activeTab === "dashboard" ? (
-          <section className="space-y-6">
+          <section className="space-y-8">
             <TopicInput
               topic={topic}
               setTopic={setTopic}
@@ -691,184 +775,238 @@ export default function HomePage() {
               loading={loading}
               currentStep={displaySteps}
               steps={STEPS}
+              isScheduled={isScheduled}
+              setIsScheduled={setIsScheduled}
+              scheduledAt={scheduledAt}
+              setScheduledAt={setScheduledAt}
+              autoPublish={autoPublish}
+              setAutoPublish={setAutoPublish}
+              onSchedule={handleSchedule}
             />
 
             {/* AI Image toggle */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 bg-white border-2 border-[#0B132B] rounded-2xl p-4 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
               <button
                 id="ai-image-toggle"
                 type="button"
                 role="switch"
                 aria-checked={aiGenerated}
                 onClick={() => setAiGenerated((v) => !v)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:ring-offset-2 ${
                   aiGenerated
-                    ? "border-violet-600 bg-violet-600"
+                    ? "border-[#0B132B] bg-[#0B132B]"
                     : "border-slate-300 bg-slate-200"
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-4 w-4 translate-y-[1px] rounded-full bg-white shadow ring-0 transition-transform duration-200 ${
+                  className={`pointer-events-none inline-block h-4 w-4 translate-y-[1px] rounded-full bg-white shadow transition-transform duration-200 ${
                     aiGenerated ? "translate-x-5" : "translate-x-0.5"
                   }`}
                 />
               </button>
               <label
                 htmlFor="ai-image-toggle"
-                className="flex cursor-pointer select-none flex-col"
+                className="flex cursor-pointer select-none flex-col font-mono"
                 onClick={() => setAiGenerated((v) => !v)}
               >
-                <span className="text-sm font-semibold text-slate-700">
-                  {aiGenerated ? "✨ AI-generated art" : "📷 Real photos (Unsplash)"}
+                <span className="text-xs font-bold text-[#0B132B]">
+                  {aiGenerated ? "✨ AI-generated art (Creative)" : "📷 Real photos (Unsplash)"}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-[10px] text-[#4B5563] font-sans">
                   {aiGenerated
-                    ? "Pollinations.ai — unique AI images, may be slower"
-                    : "Unsplash — real high-quality stock photography"}
+                    ? "Pollinations.ai — dynamic custom art sheets"
+                    : "Unsplash — classic photography plates"}
                 </span>
               </label>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 font-mono text-xs uppercase tracking-wider font-bold">
               <button
                 type="button"
                 onClick={saveArticle}
                 disabled={isPersistingDraft}
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                className="rounded-none bg-[#0B132B] text-white px-4 py-2 border-2 border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
               >
-                {isPersistingDraft ? "Saving..." : "Save Article"}
+                {isPersistingDraft ? "Saving..." : "Save Manuscript"}
               </button>
               <button
                 type="button"
                 onClick={generate}
                 disabled={loading || !topic.trim()}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
               >
-                Regenerate
+                Re-typeset Galley
               </button>
               <button
                 type="button"
                 onClick={downloadMarkdown}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
               >
-                Download as Markdown
+                Export MD
               </button>
               <button
                 type="button"
                 onClick={downloadPdf}
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
               >
-                Download as PDF
+                Export PDF
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs font-mono uppercase text-[#4B5563]">
               {isPersistingDraft
-                ? "Saving draft..."
+                ? "Writing manuscript to disk..."
                 : hasUnsavedChanges
-                  ? "Unsaved changes. Autosave runs every 25 seconds."
+                  ? "Unsaved composition changes. Auto-logging enabled."
                   : canPersistDraft
-                    ? "All changes saved."
-                    : "Generate content to start drafting."}
+                    ? "Manuscript composition locked and saved."
+                    : "No active composition. Insert a topic above to begin."}
             </p>
 
+            {/* Upcoming Scheduled Articles list */}
+            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]" id="upcoming-jobs-container">
+              <h3 className="font-serif text-lg font-extrabold text-[#0B132B] mb-4 flex items-center justify-between border-b border-[#0B132B]/10 pb-3">
+                <span>📅 Upcoming Stagger Runs</span>
+                {scheduledJobs.length > 0 && (
+                  <span className="text-xs font-mono bg-[#0B132B] text-white px-2 py-0.5 font-bold">
+                    {scheduledJobs.length} RUNS
+                  </span>
+                )}
+              </h3>
+              
+              {scheduledJobs.length === 0 ? (
+                <p className="text-xs font-mono uppercase text-[#4B5563] py-4 text-center">
+                  No manuscript runs scheduled in the galley press.
+                </p>
+              ) : (
+                <div className="divide-y divide-[#0B132B]/10 space-y-3">
+                  {scheduledJobs.map((job) => (
+                    <div key={job._id} className="pt-3 first:pt-0 flex items-center justify-between gap-4 font-mono text-xs" id={`upcoming-job-${job._id}`}>
+                      <div className="space-y-1">
+                        <h4 className="font-serif text-sm font-extrabold text-[#0B132B] leading-tight">
+                          {job.topic}
+                        </h4>
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#4B5563]">
+                          <span className="bg-[#F4F6F9] border border-[#0B132B]/10 px-2 py-0.5 font-medium">
+                            RUN: {new Date(job.scheduled_at).toLocaleString()}
+                          </span>
+                          {job.auto_publish && (
+                            <span className="bg-[#FEF08A] border border-[#0B132B]/20 text-[#0B132B] px-2 py-0.5 font-bold">
+                              🚀 AUTO-PUBLISH
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleCancelJob(job._id)}
+                        className="rounded-none bg-rose-50 hover:bg-rose-100 border-2 border-rose-350 text-rose-800 px-3 py-1.5 text-[10px] font-bold uppercase transition shadow-[1.5px_1.5px_0px_rgba(153,27,27,1)] hover:shadow-none"
+                        id={`cancel-btn-${job._id}`}
+                      >
+                        Cancel Run
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {loading ? (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
-                <SkeletonCard />
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <div className="h-48 w-full bg-white border-2 border-[#0B132B]/10 rounded-2xl animate-pulse" />
+                <div className="h-48 w-full bg-white border-2 border-[#0B132B]/10 rounded-2xl animate-pulse" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
                 <KeywordsPanel keywords={keywords} />
                 <StructureViewer structure={structure} />
+                
                 <div className="xl:col-span-2">
                   <ArticleEditor blocks={blocks} setBlocks={setBlocks} keywords={keywords} />
                 </div>
+                
                 <div className="xl:col-span-2">
                   <ImageGallery images={images} onRegenerate={generate} loading={loading} />
                 </div>
-                <section className="glass-card rounded-2xl p-5 md:p-6 xl:col-span-2">
-                  <h2 className="mb-4 text-xl font-semibold text-slatebrand">Hybrid HTML Preview</h2>
+
+                <section className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:col-span-2">
+                  <h2 className="mb-4 font-serif text-lg font-extrabold text-[#0B132B] border-b border-[#0B132B]/10 pb-2">
+                    Galley Proof HTML Layout
+                  </h2>
                   {!content ? (
-                    <p className="text-sm text-slate-500">Generate content to view the rendered hybrid HTML.</p>
+                    <p className="text-xs font-mono uppercase text-[#4B5563]">Generate manuscript to review inline formatting.</p>
                   ) : (
                     <article
-                      className="article-html max-h-[700px] overflow-auto rounded-xl border border-slate-200 bg-white p-4"
+                      className="article-html max-h-[700px] overflow-auto rounded-none border-2 border-[#0B132B] bg-[#F4F6F9] p-6 font-sans"
                       dangerouslySetInnerHTML={{ __html: content }}
                     />
                   )}
                 </section>
 
-                <section className="glass-card rounded-2xl p-5 md:p-6 xl:col-span-2">
-                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+                <section className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:col-span-2">
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[#0B132B]/10 pb-3">
                     <div>
-                      <h2 className="text-xl font-semibold text-slatebrand">Published Article Analytics</h2>
-                      <p className="text-sm text-slate-500">Track views, conversion funnel, and keyword performance.</p>
+                      <h2 className="font-serif text-lg font-extrabold text-[#0B132B]">Circulation & Readership</h2>
+                      <p className="text-xs text-[#4B5563] font-mono uppercase">Track proof metrics and query performance.</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-700">Total published: {publishedArticles.length}</p>
-                      <Link href="/articles" className="mt-1 inline-block text-xs font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800">
-                        View all articles &rarr;
-                      </Link>
+                    <div className="text-right font-mono text-xs font-bold text-[#0B132B]">
+                      <p>COMPLETED GALLEYS: {publishedArticles.length}</p>
                     </div>
                   </div>
 
                   <div className="mb-6 flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Top Keywords:</span>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#4B5563]">Top Keywords:</span>
                     {analyticsFunnel.topKeywords.length > 0 ? analyticsFunnel.topKeywords.map(([kw, views]) => (
-                      <span key={kw} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 border border-emerald-200">
-                        <span className="text-xs font-bold text-emerald-800">{kw}</span>
-                        <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-1.5 rounded-full">{views} views</span>
+                      <span key={kw} className="inline-flex items-center gap-1.5 rounded-none border border-[#0B132B] bg-[#F4F6F9] px-2.5 py-1 font-mono text-[10px]">
+                        <span className="font-bold text-[#0B132B]">{kw}</span>
+                        <span className="font-bold text-[#1D4ED8] bg-white border border-[#0B132B]/10 px-1.5">{views} views</span>
                       </span>
-                    )) : <span className="text-xs text-slate-400">Not enough data</span>}
+                    )) : <span className="text-[10px] font-mono text-[#4B5563]">No search metrics yet</span>}
                   </div>
 
-                  <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-xs font-semibold text-slate-500">Drafts</p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.totalDrafts}</p>
+                  <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
+                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Manuscript Drafts</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.totalDrafts}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-xs font-semibold text-slate-500">Published</p>
-                      <p className="mt-1 text-2xl font-bold text-emerald-600">{publishedArticles.length}</p>
+                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Completed Galleys</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#1E3A8A]">{publishedArticles.length}</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-xs font-semibold text-slate-500">Publish Rate</p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.publishedRatio}%</p>
+                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Galley Run Yield</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.publishedRatio}%</p>
                     </div>
-                    <div className="rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="text-xs font-semibold text-slate-500">Avg Time to Publish</p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900">{analyticsFunnel.timeCount > 0 ? analyticsFunnel.avgPublishTimeText : "-"}</p>
+                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Avg Composition Run</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.timeCount > 0 ? analyticsFunnel.avgPublishTimeText : "-"}</p>
                     </div>
                   </div>
 
                   {savedArticlesLoading ? (
                     <div className="grid gap-3 md:grid-cols-2">
-                      <div className="skeleton h-24 w-full rounded-xl" />
-                      <div className="skeleton h-24 w-full rounded-xl" />
+                      <div className="h-24 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
+                      <div className="h-24 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
                     </div>
                   ) : savedArticlesFetchFailed ? (
-                    <p className="text-sm text-rose-600">Analytics unavailable until articles load successfully.</p>
+                    <p className="text-xs font-mono uppercase text-rose-700">Metrics unavailable.</p>
                   ) : publishedArticles.length === 0 ? (
-                    <p className="text-sm text-slate-500">No published articles yet.</p>
+                    <p className="text-xs font-mono uppercase text-[#4B5563]">No published manuscripts in this press run.</p>
                   ) : (
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-2">
                       {publishedArticles
                         .slice()
                         .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
                         .map((article) => (
-                          <article key={article.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                          <article key={article.id} className="rounded-none border-2 border-[#0B132B] bg-white p-4">
                             <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <h3 className="text-base font-semibold text-slate-900">{article.topic}</h3>
-                                <p className="mt-1 text-xs text-slate-500">
-                                  Published {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "-"}
+                              <div className="font-mono">
+                                <h3 className="font-serif text-sm font-extrabold text-[#0B132B] leading-tight">{article.topic}</h3>
+                                <p className="mt-1 text-[10px] text-[#4B5563]">
+                                  PUBLISHED: {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "-"}
                                 </p>
                                 <div className="mt-3 flex items-center gap-3">
-                                  <p className="text-sm font-semibold text-slate-700">
-                                    {(article.viewCount ?? 0).toLocaleString()} views
+                                  <p className="text-xs font-bold text-[#0B132B]">
+                                    {(article.viewCount ?? 0).toLocaleString()} VIEWS
                                   </p>
                                   <Sparkline views={article.viewCount ?? 0} />
                                 </div>
@@ -880,7 +1018,7 @@ export default function HomePage() {
                                   if (!confirmed) return;
                                   void deleteArticle(article.id);
                                 }}
-                                className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50"
+                                className="rounded-none bg-rose-50 hover:bg-rose-100 border-2 border-rose-350 text-rose-800 px-3 py-1.5 text-[10px] font-bold uppercase transition shadow-[1.5px_1.5px_0px_rgba(153,27,27,1)] hover:shadow-none"
                               >
                                 Delete
                               </button>
@@ -889,9 +1027,9 @@ export default function HomePage() {
                             {article.slug ? (
                               <a
                                 href={`/blog/${article.slug}`}
-                                className="mt-3 inline-block text-xs font-semibold text-sky-700 underline underline-offset-2"
+                                className="mt-3 inline-block text-[10px] font-bold text-[#1D4ED8] underline hover:text-[#1E3A8A] font-mono"
                               >
-                                Open article
+                                Open Publication
                               </a>
                             ) : null}
                           </article>

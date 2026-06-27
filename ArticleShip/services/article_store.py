@@ -28,8 +28,36 @@ def _get_collection():
     return client[db_name][collection_name]
 
 
-def _utc_now_iso() -> str:
+def get_jobs_collection():
+    mongo_uri = os.getenv("MONGODB_URI", "").strip()
+    if not mongo_uri:
+        raise ValueError("MONGODB_URI is not configured")
+
+    db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
+    collection_name = os.getenv("MONGODB_JOBS_COLLECTION", "jobs").strip() or "jobs"
+
+    client = MongoClient(mongo_uri)
+    return client[db_name][collection_name]
+
+
+def get_batches_collection():
+    mongo_uri = os.getenv("MONGODB_URI", "").strip()
+    if not mongo_uri:
+        raise ValueError("MONGODB_URI is not configured")
+
+    db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
+    collection_name = os.getenv("MONGODB_BATCHES_COLLECTION", "batches").strip() or "batches"
+
+    client = MongoClient(mongo_uri)
+    return client[db_name][collection_name]
+
+
+def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _utc_now_iso() -> str:
+    return utc_now_iso()
 
 
 def _slugify(value: str) -> str:

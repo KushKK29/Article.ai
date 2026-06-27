@@ -1,65 +1,107 @@
+/**
+ * NOTE FOR USER REVIEW:
+ * Please verify/confirm the following details before launch:
+ * 1. Founder name: Kush Goel (Line 31)
+ * 2. Story details: Frustrations with existing tools (hours wasted on outline generation, robotic content) (Line 36)
+ * 3. Pipeline explanation: Keyword clustering, semantic structure outline, deep text generation, captioned plate image sourcing (Line 60)
+ */
+
 import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "About Me | Kush Goel",
-  description: "Learn more about Kush Goel, the writer and researcher behind this publication focused on tech, SEO, and growth."
+  title: "The Editorial Desk | ArticleShip",
+  description: "Learn about the motivations and programmatic pipelines driving ArticleShip's automated typeset."
 };
 
 export default function AboutPage() {
   return (
-    <main className="mx-auto w-full max-w-4xl px-6 py-16 md:py-24 bg-white text-slate-900">
-      <div className="space-y-12">
-        <header className="space-y-4 border-b border-slate-200 pb-10 text-center md:text-left">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-600">The Story Behind the Writing</p>
-          <h1 className="text-4xl font-black tracking-tight text-slate-900 sm:text-6xl">
-            Hi, I&apos;m Kush Goel.
-          </h1>
-          <p className="mx-auto md:mx-0 max-w-2xl text-xl leading-relaxed text-slate-600">
-            I created this space as a personal digital journal where I share my deep dives 
-            into the intersections of software engineering, technical SEO, and modern digital growth.
+    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+      <article className="mx-auto max-w-[800px] space-y-12">
+        
+        {/* Masthead Header */}
+        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Founding Colophon</p>
+          <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Meet Kush Goel</h1>
+          <p className="text-sm font-mono uppercase text-[#4B5563]">
+            Founder & Typesetter of ArticleShip
           </p>
         </header>
 
-        <section className="prose prose-slate max-w-none space-y-6 text-lg leading-relaxed text-slate-700">
-          <p>
-            I&apos;ve always believed that the best way to learn is to teach. Over the last few years, 
-            I found myself constantly researching complex technical topics—from the intricacies of 
-            RAG architectures to the evolving landscape of search algorithms.
+        {/* Narrative Section */}
+        <section className="prose prose-stone prose-md space-y-6 text-[#0B132B] leading-relaxed">
+          <p className="font-serif text-lg italic text-[#4B5563] pl-4 border-l-2 border-[#0B132B]/20">
+            &quot;I didn&apos;t build ArticleShip because I wanted another AI wrapper. I built it because I was exhausted by the friction of publishing technical dispatches.&quot;
           </p>
+          
           <p>
-            This site is where I document those findings. Every article published here is the result 
-            of hours of investigation, practical testing, and my own personal perspective on where 
-            the industry is heading.
+            As a developer and technical marketer, content generation always split into two tasks: doing the actual deep research and managing the tedious mechanical typesetting workflow.
           </p>
-          <h2 className="text-2xl font-bold text-slate-900 pt-6">My Mission</h2>
+
           <p>
-            My goal is to provide high-signal, fluff-free content for fellow practitioners. 
-            I focus on providing actionable strategies that are grounded in real data rather than 
-            just theoretical speculation.
+            I faced three distinct frustrations that prompted me to build ArticleShip:
           </p>
+
+          <div className="grid gap-6 md:grid-cols-3 font-mono text-[10px] uppercase tracking-wider text-[#4B5563] pt-4">
+            <div className="border border-[#0B132B]/10 p-4 bg-white rounded-xl">
+              <span className="font-bold text-[#0B132B] block mb-1">01. Outline Friction</span>
+              Spending hours mapping LSI keywords, search intent variations, and drafting semantic subheadings before writing a single word.
+            </div>
+            <div className="border border-[#0B132B]/10 p-4 bg-white rounded-xl">
+              <span className="font-bold text-[#0B132B] block mb-1">02. Robotic AI Copy</span>
+              Generic AI copywriters generating shallow text stuffed with glowing tech jargon that no engineer would respect.
+            </div>
+            <div className="border border-[#0B132B]/10 p-4 bg-white rounded-xl">
+              <span className="font-bold text-[#0B132B] block mb-1">03. The Image Surcharge</span>
+              Wasting chunks of time searching libraries, downloading plates, resizing images, and formatting captions manually.
+            </div>
+          </div>
+
+          <h2 className="text-xl font-extrabold pt-6 font-serif">The Programmatic Pipeline (For Agencies & Content Directors)</h2>
           <p>
-            Whether you&apos;re a developer looking to understand search visibility or a growth 
-            strategist looking for technical depth, I hope you find these articles helpful 
-            in your own journey.
+            For marketing agencies and editorial teams, credibility is paramount. ArticleShip doesn&apos;t just hit an LLM API and dump raw text. Every run goes through an structured five-stage automated pipeline:
+          </p>
+
+          <ol className="space-y-4 font-mono text-[11px] uppercase tracking-wider text-[#4B5563] pl-5 list-decimal">
+            <li>
+              <strong className="text-[#0B132B]">Keyword & Category Clustering:</strong> We analyze search intent, extracting semantic clusters to group long-tail keywords.
+            </li>
+            <li>
+              <strong className="text-[#0B132B]">Semantic Structure Design:</strong> An outline is generated detailing all H2, H3, and H4 tags to optimize for readability and query indexing.
+            </li>
+            <li>
+              <strong className="text-[#0B132B]">Deep Drafting Engine:</strong> Our writing phase crafts high-signal, developer-grade descriptions with code blocks and structural tables.
+            </li>
+            <li>
+              <strong className="text-[#0B132B]">Plate Image Sourcing:</strong> The pipeline automatically queries Unsplash or Google Custom Search APIs, selecting relevant images and generating captions.
+            </li>
+            <li>
+              <strong className="text-[#0B132B]">Typesetting & Sanitization:</strong> The output is compiled into sanitized, responsive HTML, formatted for immediate CMS integration.
+            </li>
+          </ol>
+
+          <p className="pt-4">
+            Today, ArticleShip is run by a small team dedicated to maintaining automated typesetting and content excellence. If you manage a content portfolio or marketing agency desk, we invite you to take a seat at our press.
           </p>
         </section>
 
-        <div className="pt-12 flex flex-col sm:flex-row gap-4 items-center">
+        {/* Call to Actions */}
+        <div className="pt-8 border-t border-[#0B132B]/10 flex flex-wrap gap-4">
           <Link 
             href="/generate" 
-            className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl bg-slate-900 px-8 py-3.5 text-sm font-bold text-white transition hover:bg-slate-800"
+            className="inline-flex items-center justify-center rounded-none bg-[#0B132B] text-white px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
           >
-            Go to My Writing Studio
+            Enter Manuscript Desk
           </Link>
           <Link 
-            href="/articles" 
-            className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-8 py-3.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+            href="/pricing" 
+            className="inline-flex items-center justify-center rounded-none border-2 border-[#0B132B] bg-white px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:bg-[#F4F6F9]"
           >
-            Read My Articles
+            Review Ledger Rates
           </Link>
         </div>
-      </div>
+
+      </article>
     </main>
   );
 }

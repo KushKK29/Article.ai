@@ -273,3 +273,21 @@ h4 {
     left: 100%;
   }
 }
+
+/* Scroll offset for anchors to prevent overlap with sticky headers */
+.article-html h1,
+.article-html h2,
+.article-html h3,
+.article-html h4,
+.article-html h5,
+.article-html h6,
+.prose-custom h1,
+.prose-custom h2,
+.prose-custom h3,
+.prose-custom h4,
+h1[id],
+h2[id],
+h3[id],
+h4[id] {
+  scroll-margin-top: 110px !important;
+}
