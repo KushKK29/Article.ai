@@ -4,7 +4,7 @@ import os
 from fastapi import FastAPI, HTTPException, Query, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Dict, Any, List
 
 from services.keyword_engine import generate_seo_keywords
@@ -30,19 +30,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:3002",
-    "https://article-ai-murex.vercel.app",
-]
-env_origins = os.getenv("ALLOWED_ORIGINS", "")
-if env_origins:
-    allowed_origins.extend([o.strip() for o in env_origins.split(",") if o.strip()])
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
     allow_credentials=True,   # needed so the browser sends httpOnly cookies
     allow_methods=["*"],
     allow_headers=["*"],
@@ -168,43 +158,82 @@ async def search(q: str = Query(...), count: int = 10):
 
 
 
+from utils.constants import MAX_IMAGE_COUNT
+
+
+class ArticleGenParams(BaseModel):
+    word_count_target: int = 1500
+    image_count: int = 5
+    image_spacing: int = 2
+
+    @field_validator("word_count_target")
+    @classmethod
+    def validate_word_count_target(cls, v: int) -> int:
+        if v not in [500, 1000, 1500, 2500]:
+            raise ValueError("word_count_target must be one of [500, 1000, 1500, 2500]")
+        return v
+
+    @field_validator("image_count")
+    @classmethod
+    def validate_image_count(cls, v: int) -> int:
+        if not (0 <= v <= MAX_IMAGE_COUNT):
+            raise ValueError(f"image_count must be between 0 and {MAX_IMAGE_COUNT}")
+        return v
+
+    @field_validator("image_spacing")
+    @classmethod
+    def validate_image_spacing(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("image_spacing must be at least 1")
+        return v
+
+
 class TopicRequest(BaseModel):
     topic: str
 
-class StructureRequest(BaseModel):
+
+class StructureRequest(ArticleGenParams):
     topic: str
     seo_data: Dict[str, Any]
 
-class ArticleRequest(BaseModel):
+
+class ArticleRequest(ArticleGenParams):
     topic: str
     seo_data: Dict[str, Any]
     structure: Dict[str, Any]
 
+
 class MapperRequest(BaseModel):
     markdown_content: str
 
+
 class ImageRequest(BaseModel):
     mapped_article: List[Dict[str, Any]]
-    image_source: str = "stock" # Can be "stock" (unsplash/google) or "ai_generated"
+    image_source: str = "stock"  # Can be "stock" (unsplash/google) or "ai_generated"
 
-class PipelineRequest(BaseModel):
+
+class PipelineRequest(ArticleGenParams):
     topic: str
     image_source: str = "stock"
 
+
 class FinalPayloadRequest(BaseModel):
     final_payload: Dict[str, Any]
+
 
 class HybridFinalPayloadRequest(BaseModel):
     final_payload: Dict[str, Any]
     include_inline_styles: bool = True
 
-class HybridPipelineRequest(BaseModel):
+
+class HybridPipelineRequest(ArticleGenParams):
     topic: str
     image_source: str = "stock"
     include_inline_styles: bool = True
     user_id: str | None = None
 
-class ScheduleArticleRequest(BaseModel):
+
+class ScheduleArticleRequest(ArticleGenParams):
     topic: str
     scheduled_at: str
     auto_publish: bool = False
@@ -213,7 +242,8 @@ class ScheduleArticleRequest(BaseModel):
     image_source: str = "stock"
     include_inline_styles: bool = True
 
-class BatchCreateRequest(BaseModel):
+
+class BatchCreateRequest(ArticleGenParams):
     topics: List[str]
     name: str | None = None
     scheduled_at: str | None = None
@@ -295,7 +325,13 @@ async def build_structure(request: StructureRequest):
     Generate an article outline structure (H1, H2, H3, H4) based on the topic and generated SEO data.
     """
     try:
-        data = await build_article_structure(request.topic, request.seo_data)
+        data = await build_article_structure(
+            request.topic,
+            request.seo_data,
+            word_count_target=request.word_count_target,
+            image_count=request.image_count,
+            image_spacing=request.image_spacing,
+        )
         return {"topic": request.topic, "structure": data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -417,10 +453,7 @@ async def hybrid_html_from_final(request: HybridFinalPayloadRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/generate_full_article_hybrid_html", tags=["End-to-End Orchestrator"])
-async def generate_full_article_hybrid_html(
-    request: HybridPipelineRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user)
-):
+async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
     """
     Enqueues a background job to generate a full article with hybrid HTML.
     """
@@ -430,18 +463,20 @@ async def generate_full_article_hybrid_html(
         jobs_col = get_jobs_collection()
         job_doc = {
             "_id": job_id,
-            "user_id": current_user["id"],
+            "user_id": request.user_id,
             "topic": request.topic,
             "image_source": request.image_source,
             "include_inline_styles": request.include_inline_styles,
+            "word_count_target": request.word_count_target,
+            "image_count": request.image_count,
+            "image_spacing": request.image_spacing,
             "status": "queued",
             "current_step": "keywords",
             "created_at": utc_now_iso(),
             "started_at": None,
             "completed_at": None,
             "error_message": None,
-            "result_article_id": None,
-            "job_cost": _job_cost_defaults(),
+            "result_article_id": None
         }
         jobs_col.insert_one(job_doc)
         return {"job_id": job_id}
@@ -492,6 +527,9 @@ async def schedule_article(
             "topic": request.topic,
             "image_source": request.image_source,
             "include_inline_styles": request.include_inline_styles,
+            "word_count_target": request.word_count_target,
+            "image_count": request.image_count,
+            "image_spacing": request.image_spacing,
             "status": "scheduled",
             "current_step": "keywords",
             "created_at": utc_now_iso(),
@@ -614,6 +652,9 @@ async def create_batch(
                 "topic": topic,
                 "image_source": request.image_source,
                 "include_inline_styles": request.include_inline_styles,
+                "word_count_target": request.word_count_target,
+                "image_count": request.image_count,
+                "image_spacing": request.image_spacing,
                 "status": job_status,
                 "current_step": "keywords",
                 "created_at": utc_now_iso(),

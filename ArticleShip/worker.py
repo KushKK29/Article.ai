@@ -64,7 +64,32 @@ async def process_job(job, jobs_col):
         # Step 2: Outline
         logger.info(f"Job {job_id}: current_step=outline")
         jobs_col.update_one({"_id": job_id}, {"$set": {"current_step": "outline"}})
-        structure = await build_article_structure(topic, seo_data)
+        
+        word_count_target = job.get("word_count_target", 1500)
+        image_count = job.get("image_count", 5)
+        image_spacing = job.get("image_spacing", 2)
+        
+        structure = await build_article_structure(
+            topic,
+            seo_data,
+            word_count_target=word_count_target,
+            image_count=image_count,
+            image_spacing=image_spacing
+        )
+        
+        if "error" in structure:
+            raise ValueError(f"Structure generation failed: {structure['error']}")
+        
+        # Save resolved image slots and count back to the job document
+        jobs_col.update_one(
+            {"_id": job_id},
+            {
+                "$set": {
+                    "resolved_image_count": structure.get("resolved_image_count", image_count),
+                    "assigned_image_slots": structure.get("assigned_image_slots", []),
+                }
+            }
+        )
         
         # Step 3: Content
         logger.info(f"Job {job_id}: current_step=content")
@@ -75,7 +100,8 @@ async def process_job(job, jobs_col):
             topic,
             seo_data,
             structure,
-            related_articles=related_articles
+            related_articles=related_articles,
+            word_count_target=job.get("word_count_target", 1500)
         )
         mapped_article = parse_markdown_to_mapping(raw_markdown)
         
@@ -83,7 +109,12 @@ async def process_job(job, jobs_col):
         logger.info(f"Job {job_id}: current_step=images")
         jobs_col.update_one({"_id": job_id}, {"$set": {"current_step": "images"}})
         ai_generated = (job.get("image_source") == "ai_generated" or job.get("image_source") == "ai")
-        blocks_with_images = await embed_images_in_article(mapped_article, ai_generated=ai_generated)
+        assigned_slots = job.get("assigned_image_slots") or structure.get("assigned_image_slots", [])
+        blocks_with_images = await embed_images_in_article(
+            mapped_article, 
+            ai_generated=ai_generated,
+            assigned_image_slots=assigned_slots
+        )
         
         # Step 5: Formatting
         logger.info(f"Job {job_id}: current_step=formatting")
@@ -101,10 +132,8 @@ async def process_job(job, jobs_col):
         article_payload = {
             "meta": hybrid_payload.get("meta", {}),
             "seo_data": hybrid_payload.get("seo_data", {}),
-            "structure": structure,
             "blocks": final_payload.get("blocks", []),
             "html": hybrid_payload.get("html", ""),
-            "content": hybrid_payload.get("html", ""),
             "render_mode": hybrid_payload.get("render_mode", "hybrid_class_plus_optional_inline"),
             "inline_styles_enabled": hybrid_payload.get("inline_styles_enabled", include_inline_styles),
         }

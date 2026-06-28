@@ -358,10 +358,56 @@ def select_related_articles(
 def build_prompt(topic: str, seo_data: dict, structure: dict,
                  search_context: str,
                  banned_phrases: list[str] = BANNED_PHRASES,
-                 related_articles: list[dict] | None = None) -> str:
+                 related_articles: list[dict] | None = None,
+                 word_count_target: int = 1500) -> str:
     primary_kw = seo_data.get("primary_keyword", "")
     search_intent = seo_data.get("search_intent", "Informational")
     banned = ', '.join(f'"{p}"' for p in banned_phrases)
+
+    flat_headings = []
+    for sec in structure.get("sections", []):
+        flat_headings.append(sec.get("h2", ""))
+        for sub in sec.get("subsections", []):
+            flat_headings.append(sub.get("h3", ""))
+
+    num_sections = len(flat_headings)
+    if num_sections > 0:
+        # Subtract 100 words for introduction and metadata, then divide by num_sections
+        target_words_per_section = max(60, int((word_count_target - 100) / num_sections))
+    else:
+        target_words_per_section = 150
+
+    # Helper for depth targets based on word_count_target
+    def _get_depth_targets(target: int) -> str:
+        return (
+            f"- H2 & H3 section length target: approximately {target_words_per_section} words each.\n"
+            f"       - Overall article target length: {target} words total (excluding metadata).\n"
+            f"       - Do NOT exceed these lengths. Keep your descriptions tight, direct, and concise."
+        )
+
+    # Programmatically determine image slot assignment expectations
+    assigned_slots = structure.get("assigned_image_slots", [])
+    image_headings = []
+    for idx in assigned_slots:
+        if idx < len(flat_headings):
+            image_headings.append(flat_headings[idx])
+
+    if image_headings:
+        image_rules = (
+            f"You MUST place exactly {len(image_headings)} image alt tags in the article.\n"
+            f"       Immediately after each of the following headings (on its own new line, before the section's prose/intro), write exactly this format:\n"
+            f"       `[IMAGE ALT: descriptive alt text here]`\n\n"
+            f"       Headings that MUST receive an image alt tag:\n"
+            + "\n".join(f"       - {h}" for h in image_headings) + "\n\n"
+            f"       Do NOT place [IMAGE ALT: ...] tags under any other headings."
+        )
+        audit_tag_line = f"ALT_TAG_AUDIT: {len(image_headings)} image slots assigned, [n] IMAGE ALT tags written."
+    else:
+        image_rules = (
+            "Do NOT place any [IMAGE ALT: ...] tags under any headings. "
+            "No images are assigned to this article."
+        )
+        audit_tag_line = "ALT_TAG_AUDIT: 0 image slots assigned, 0 IMAGE ALT tags written."
 
     # Build the internal links instruction block before entering the f-string.
     if related_articles and len(related_articles) >= 2:
@@ -406,7 +452,8 @@ CONTENT ANGLE — lead with this differentiation hook, do not ignore it:
 SEO INTEGRATION:
 - Primary keyword ("{primary_kw}"): MUST appear in the first 2 sentences of the article, in at least one H2 heading verbatim, and in the final paragraph. This is non-negotiable.
 - Secondary keywords: weave into H2/H3 openings naturally — one per section, not clustered.
-- Semantic keywords: distribute these throughout the body copy as supporting vocabulary and/or long-tail questions/phrases to signal topical depth and authority to Google. At least 5 of these must appear naturally in the text.
+- Long-tail keywords: each must appear at least once in body copy as a natural phrase — never bolted on at the end of a sentence.
+- LSI keywords: distribute throughout as supporting vocabulary — they signal topical authority to Google.
 - Search intent: {search_intent} — every section must serve this intent. Do not drift into unrelated subtopics.
 - Never bold keywords or any search phrase in body text. Bold is for subheadings only.
 
@@ -509,13 +556,12 @@ WRITING RULES:
    - Unqualified universals: "all developers" → replace with "engineers working with X pattern"
    - Motivation filler: "this is important because..." → cut it, make the point directly
 
-7. INTERNAL STAT INTEGRITY (new — addresses fabricated precision problem)
-   When the article reports measurements from the author's own trial (e.g. "40% faster"), these MUST be accompanied by a one-sentence methodology note the first time they appear. This note must name the measurement method.
-   Format: "(We measured this by logging task time in Toggl across 160 hours of active development.)"
-   Rules:
-   - Use "roughly" or "approximately" for estimates. Use exact numbers only when you have a method.
+7. INTERNAL STAT INTEGRITY — NO FABRICATED METHODOLOGY
+   Prohibit fabricated methodology notes or false precision:
+   - Do NOT invent specific tools (e.g. Toggl), hour counts, or trial settings (e.g. "160 hours of active development") to justify estimates.
+   - Do NOT invent metrics or stats. Use estimates only when qualified with words like "roughly" or "approximately".
+   - Attribution rules: any specific metric must either (a) come directly from a real search context source with attribution or (b) be clearly labeled as a general industry estimate without inventing mock methodology.
    - All percentage figures in the article must be internally consistent. Before outputting, verify: if boilerplate is "60% faster" in one section, it cannot be "70% faster" in another without an explanation of the difference.
-   - Never use a percentage without it being either (a) attributed to an external source with a real citation or (b) qualified as an internal estimate with a methodology note.
 
 8. KEYWORD IN INTRO (critical SEO fix)
    The primary keyword "{primary_kw}" must appear naturally within the first 
@@ -539,9 +585,7 @@ WRITING RULES:
     The FAQ section at the end MUST use 3 questions that are NOT already answered as standalone H2 or H3 sections elsewhere in the article. Scan all headings before writing the FAQ. If a heading already answers a question, that question is BANNED from the FAQ.
 
 12. DEPTH TARGETS
-    - H2 sections: 250–400 words minimum.
-    - H3 sections: 150–220 words.
-    - H4 sections: 80–130 words.
+    {_get_depth_targets(word_count_target)}
 
 13. NO GENERIC AI VOICE
     Banned structural patterns:
@@ -631,17 +675,7 @@ WRITING RULES:
     - Blockquote: one memorable expert-voice statement per H2.
 
 24. IMAGE ALT TEXT RULES
-    After EVERY H2 heading line, on its own new line, write EXACTLY this format:
-    [IMAGE ALT: descriptive alt text here]
-
-    This line must appear BEFORE any prose content in that section.
-    If this line is missing from any H2 section, that section is incomplete.
-
-    SELF-CHECK: After completing the full article, before the META_DESCRIPTION line,
-    output a single line:
-    ALT_TAG_AUDIT: [n] H2 sections found, [n] IMAGE ALT tags written.
-    If the two numbers differ, insert the missing [IMAGE ALT: ...] tags immediately
-    above this audit line before moving to the META_DESCRIPTION.
+    {image_rules}
 
     Rules for the alt text itself:
     - Must describe actual visual content directly relevant to the section topic.
@@ -700,7 +734,7 @@ OUTPUT FORMAT — output in this exact order:
 1. The complete article in Markdown
 2. A blank line
 3. Exactly this line (fill in real counts):
-   ALT_TAG_AUDIT: [n] H2 sections found, [n] IMAGE ALT tags written.
+   {audit_tag_line}
 4. A blank line
 5. Exactly this line:
    META_DESCRIPTION: [150–160 character meta description — include primary keyword, written for CTR, present tense, active voice]
@@ -716,12 +750,20 @@ async def generate_article_content(
     related_articles: list[dict] | None = None,
     model: str = "gemini-3-flash-preview",
     temperature: float = 0.7,
+    word_count_target: int = 1500,
 ) -> str:
     """
     Generate full article markdown from topic, SEO data, and locked structure.
     """
     search_context = await asyncio.to_thread(_retrieve_article_context_sync, topic)
-    prompt = build_prompt(topic, seo_data, structure, search_context, related_articles=related_articles)
+    prompt = build_prompt(
+        topic,
+        seo_data,
+        structure,
+        search_context,
+        related_articles=related_articles,
+        word_count_target=word_count_target
+    )
 
     try:
         response = await asyncio.to_thread(
@@ -741,6 +783,43 @@ async def generate_article_content(
             raise ValueError("Model returned an empty response.")
 
         logger.info("Article generated - approx %d words", len(article.split()))
+
+        # Post-generation validation: Audit image slots and log any deviations
+        try:
+            from services.content_mapper import parse_markdown_to_mapping
+            blocks = parse_markdown_to_mapping(article)
+            
+            assigned_slots = structure.get("assigned_image_slots", [])
+            h2_h3_idx = 0
+            actual_slots = []
+            
+            for block in blocks:
+                level = block.get("level", 0)
+                if level in (2, 3):
+                    has_marker = bool(re.search(r"\[IMAGE ALT:[^\]]*\]", block.get("content", ""), re.IGNORECASE))
+                    if has_marker:
+                        actual_slots.append(h2_h3_idx)
+                    h2_h3_idx += 1
+            
+            if actual_slots != assigned_slots:
+                logger.warning(
+                    "IMAGE_SLOT_MISMATCH: Model did not place alt tags at the assigned heading indices. "
+                    "Assigned: %s, Actual generated: %s",
+                    assigned_slots,
+                    actual_slots
+                )
+            else:
+                logger.info("IMAGE_SLOT_VALIDATION: All image slots matched assigned slots perfectly.")
+
+            # Audit the self-check line itself
+            audit_match = re.search(r"^ALT_TAG_AUDIT:\s*(.*)$", article, re.MULTILINE | re.IGNORECASE)
+            if audit_match:
+                logger.info("Parsed ALT_TAG_AUDIT line from model: %s", audit_match.group(0).strip())
+            else:
+                logger.warning("ALT_TAG_AUDIT_MISSING: Model did not emit the ALT_TAG_AUDIT line.")
+        except Exception as audit_err:
+            logger.error("Failed to run post-generation image slot audit: %s", audit_err)
+
         return article
 
     except Exception as e:

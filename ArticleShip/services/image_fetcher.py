@@ -59,23 +59,19 @@ def should_embed_image(block: Dict[str, Any]) -> tuple[bool, str | None]:
     """
     Decides if an image should be fetched and from which source.
     Returns (should_embed, 'unsplash' | 'google' | None)
-
-    Rules:
-      H1  → always, Unsplash (hero image)
-      H2  → always, Unsplash (section image)
-      H3  → Google if heading OR content references a known tool; else skip
-      H4+ → never
     """
     level = block.get("level", 0)
 
     if level == 1:
         return True, "unsplash"
-    elif level == 2:
-        return True, "unsplash"
-    elif level == 3:
-        if _has_tool_mention(block):
-            return True, "google"
-        return False, None
+
+    if level in (2, 3):
+        # Restrict image embedding to explicitly assigned image slots
+        if block.get("is_image_slot"):
+            if _has_tool_mention(block):
+                return True, "google"
+            return True, "unsplash"
+
     return False, None
 
 
@@ -250,31 +246,49 @@ async def process_single_block(
 async def embed_images_in_article(
     blocks: List[Dict[str, Any]],
     ai_generated: bool = False,
+    assigned_image_slots: List[int] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Concurrently fetches or generates images for all eligible blocks.
     Blocks that don't need images, or where all sources fail, are returned unchanged.
 
     Args:
-        blocks:        mapped_article list from your article mapper.
-        ai_generated:  If True, H1/H2 images are generated via Pollen AI
-                       (falls back to Unsplash on failure).
-                       H3 tool screenshots always use Google regardless.
+        blocks:                mapped_article list from your article mapper.
+        ai_generated:          If True, H1/H2 images are generated via Pollen AI
+                               (falls back to Unsplash on failure).
+                               H3 tool screenshots always use Google regardless.
+        assigned_image_slots:  Indices list of headings that should receive an image.
 
     Returns:
         The same list with an "image" field added to eligible blocks.
     """
     import copy
 
+    # Annotate blocks with image slot assignment
+    annotated_blocks = []
+    h2_h3_idx = 0
+    for block in blocks:
+        b = copy.deepcopy(block)
+        level = b.get("level", 0)
+        if level in (2, 3):
+            b["is_image_slot"] = (
+                assigned_image_slots is not None 
+                and h2_h3_idx in assigned_image_slots
+            )
+            h2_h3_idx += 1
+        else:
+            b["is_image_slot"] = False
+        annotated_blocks.append(b)
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(25.0, connect=10.0)) as client:
         tasks = [
-            process_single_block(client, copy.deepcopy(block), ai_generated)
-            for block in blocks
+            process_single_block(client, b, ai_generated)
+            for b in annotated_blocks
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
     output = []
-    for original, result in zip(blocks, results):
+    for original, result in zip(annotated_blocks, results):
         if isinstance(result, Exception):
             logger.error(
                 "Unexpected error processing block '%s': %s",
