@@ -56,12 +56,18 @@ def _core_search_terms(topic: str) -> str:
 
 def _retrieve_article_context_sync(topic: str) -> str:
     snippets: list[str] = []
+    topic_lower = topic.lower()
+    seen_urls: set[str] = set()
+    category = "general"
+    blocked_domains = [
+        "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
+        "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
+        "cnblogs.com", "36kr.com"
+    ]
 
     try:
         ddgs = DDGS()
         search_subject = _normalize_search_subject(topic)
-        core_terms = _core_search_terms(topic)
-        seen_urls: set[str] = set()
 
         # Step 1: Intent detection
         category = categorize_topic(topic)
@@ -156,11 +162,6 @@ def _retrieve_article_context_sync(topic: str) -> str:
             return 1
 
         temp_results = []
-        blocked_domains = [
-            "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
-            "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
-            "cnblogs.com", "36kr.com"
-        ]
 
         for query in queries:
             try:
@@ -483,42 +484,16 @@ WRITING RULES:
 2. HOOK (critical)
    The first paragraph under H1 MUST open with a scroll-stopping statement — a bold claim, a surprising stat, or a direct challenge to a common assumption. Do NOT open with "The conversation surrounding..." or any slow-burn scene-setting. Get to the point in sentence one.
 
-2b. TL;DR SUMMARY BLOCK (new — addresses bounce rate and featured snippet gap)
-   Immediately after the opening hook paragraph and before the first H2, insert a structured summary block with horizontal rule separators. Format exactly as follows:
-
-   ---
-   **Quick verdict before you read:**
-   - ✅ Worked: [2–4 specific tasks where the subject genuinely succeeded]
-   - ❌ Failed: [2–4 specific failure areas covered in the article]
-   - 💰 Real cost: [one specific financial or time cost from the article]
-   - ⏱️ Honest time saving: [overall productivity verdict in one line]
-   - 🎯 Who should read this: [one sentence describing the ideal reader]
-   ---
-
-   Rules:
-   - Every bullet must reference something actually covered in the article body. Do not invent outcomes that don't appear in the content.
-   - The ❌ Failed bullets must be specific failure modes, not generic warnings.
-     Bad: "❌ Failed: complex tasks"
-     Good: "❌ Failed: cross-file state management, OAuth retry logic, multi-tenant query isolation"
-   - Keep every line under 12 words. This is a skimmable block, not a paragraph.
-   - This block directly targets Google featured snippets for review-intent queries. The structured format (emoji labels + bullet list) is the exact pattern Google pulls for "X review 2025" and "is X worth it" searches.
-   - Do not add headers like "## Summary" above it. The bold label and horizontal rules are sufficient. A heading would create a duplicate TOC entry.
-   - This block is positioned AFTER the hook but BEFORE the first H2. Hook paragraph stays first to capture attention. TL;DR converts that attention into a commitment to read.
-
 3. HUMAN-FIRST WRITING (critical — addresses Google Helpful Content penalty risk)
    Write every paragraph as if a domain expert is speaking to a peer, not as if keywords are being placed into slots.
    - The opening paragraph must read as a genuine, opinionated point of view — not a keyword brief.
    - Never open a sentence with the primary keyword unprompted just to hit a density target.
    - Introduce statistics with narrative context: explain WHY the number matters before stating it.
-   - Use first-person singular and plural ("I found," "we observed") naturally and consistently. The author must feel like a real person — not a nameless "we." At least once in the first H2, the author must establish who they are and what project this was: their role, the tech stack, and why that context matters for the reader.
+   - Use first-person singular and plural ("I found," "we observed") naturally and consistently. The author must feel like a real person — not a nameless "we." Voice should be confident and experienced in tone without fabricating a first-person biographical backstory (refer to Rule 4 for authorship framing constraints).
    - If a keyword feels forced in a sentence, rewrite the sentence — do not keep the forced version.
 
 4. AUTHORSHIP IDENTITY SIGNAL (new — addresses "no personal identity" problem)
-   Google's E-E-A-T framework explicitly rewards content where the author's real experience is visible. The article MUST establish a clear author identity within the first 300 words. This means:
-   - Name the author's role: "As a backend engineer managing a distributed Rust and TypeScript codebase..."
-   - Name the project context: "...on a live Node.js-to-microservices migration..."
-   - Name a specific constraint or pressure: "...with a 90% CI coverage requirement and a team of four."
-   This is not biography. It is credibility scaffolding. It answers the implicit reader question: "Why should I trust this person's opinion over the ten other articles I could read?"
+   Do NOT invent a specific named author role, employer, project name, or personal biography. Voice should be confident and experienced in TONE without fabricating WHO is speaking or WHAT specific project they worked on. Use general practitioner framing ('in practice,' 'teams commonly find') instead of fabricated first-person backstory.
 
 5. UNIQUE INSIGHT REQUIREMENT (critical — addresses "AI slop" problem)
    Every H2 section MUST contain at least one of the following:
