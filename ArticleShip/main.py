@@ -30,9 +30,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "https://article-ai-murex.vercel.app",
+]
+env_origins = os.getenv("ALLOWED_ORIGINS", "")
+if env_origins:
+    allowed_origins.extend([o.strip() for o in env_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
+    allow_origins=allowed_origins,
     allow_credentials=True,   # needed so the browser sends httpOnly cookies
     allow_methods=["*"],
     allow_headers=["*"],
