@@ -15,6 +15,7 @@
 
 import { useCallback } from "react";
 import { useAuth } from "./AuthContext";
+import { getBackendBaseUrl } from "./backend";
 
 export function useAuthFetch() {
   const { getToken, logout } = useAuth();
@@ -31,7 +32,7 @@ export function useAuthFetch() {
       // Silent refresh on 401
       if (res.status === 401) {
         const refreshRes = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000"}/api/v1/auth/refresh`,
+          `${getBackendBaseUrl()}/api/v1/auth/refresh`,
           { method: "POST", credentials: "include" }
         );
 

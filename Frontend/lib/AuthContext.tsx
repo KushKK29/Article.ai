@@ -36,9 +36,11 @@ interface AuthState {
   getToken: () => Promise<string | null>;
 }
 
+import { getBackendBaseUrl } from "./backend";
+
 const AuthContext = createContext<AuthState | null>(null);
 
-const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:8000";
+const BACKEND = getBackendBaseUrl();
 
 async function apiFetch(path: string, init?: RequestInit) {
   const res = await fetch(`${BACKEND}${path}`, {
