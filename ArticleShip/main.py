@@ -1,5 +1,8 @@
 import asyncio
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, HTTPException, Query, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,9 +33,26 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Set up allowed origins for CORS
+origins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3002",
+]
+
+env_origins = os.getenv("ALLOWED_ORIGINS")
+if env_origins:
+    for o in env_origins.split(","):
+        o_clean = o.strip()
+        if o_clean and o_clean not in origins:
+            origins.append(o_clean)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"],
+    allow_origins=origins,
     allow_credentials=True,   # needed so the browser sends httpOnly cookies
     allow_methods=["*"],
     allow_headers=["*"],
