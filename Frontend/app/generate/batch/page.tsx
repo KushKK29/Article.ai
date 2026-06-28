@@ -4,8 +4,6 @@ import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthFetch } from "@/lib/useAuthFetch";
-import RequireAuth from "@/components/RequireAuth";
 
 const playfairDisplay = Playfair_Display({
   subsets: ["latin"],
@@ -40,16 +38,7 @@ function formatPreviewTime(time: Date) {
 }
 
 export default function BatchGeneratePage() {
-  return (
-    <RequireAuth>
-      <BatchGeneratePageContent />
-    </RequireAuth>
-  );
-}
-
-function BatchGeneratePageContent() {
   const router = useRouter();
-  const authFetch = useAuthFetch();
   const [batchName, setBatchName] = useState("");
   const [topicsText, setTopicsText] = useState("");
   const [staggerPattern, setStaggerPattern] = useState("none");
@@ -59,6 +48,9 @@ function BatchGeneratePageContent() {
   const [imageSource, setImageSource] = useState<"unsplash" | "google">("unsplash");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [wordCountTarget, setWordCountTarget] = useState(1500);
+  const [imageCount, setImageCount] = useState(5);
+  const [imageSpacing, setImageSpacing] = useState(2);
 
   const topics = useMemo(
     () =>
@@ -129,7 +121,7 @@ function BatchGeneratePageContent() {
         staggerVal = Number.parseInt(staggerPattern, 10);
       }
 
-      const response = await authFetch("/api/batches", {
+      const response = await fetch("/api/batches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +131,10 @@ function BatchGeneratePageContent() {
           stagger_minutes: staggerVal,
           auto_publish: autoPublish,
           image_source: imageSource,
-          include_inline_styles: true
+          include_inline_styles: true,
+          word_count_target: wordCountTarget,
+          image_count: imageCount,
+          image_spacing: imageSpacing
         })
       });
 
@@ -303,6 +298,58 @@ function BatchGeneratePageContent() {
                 Set a start time to preview the run order.
               </div>
             )}
+
+            {/* Composition Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#0B132B]/10 pt-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="word-count-select" className="text-sm font-semibold text-[#0B132B]">
+                  Target Length
+                </label>
+                <select
+                  id="word-count-select"
+                  value={wordCountTarget}
+                  onChange={(e) => setWordCountTarget(Number(e.target.value))}
+                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                >
+                  <option value={500}>500 words (Brief / Flat)</option>
+                  <option value={1000}>1000 words (Standard Short)</option>
+                  <option value={1500}>1500 words (Default Deep)</option>
+                  <option value={2500}>2500 words (Comprehensive / Pillar)</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="image-count-input" className="text-sm font-semibold text-[#0B132B]">
+                  Image Count (0-15)
+                </label>
+                <input
+                  id="image-count-input"
+                  type="number"
+                  min={0}
+                  max={15}
+                  value={imageCount}
+                  onChange={(e) => setImageCount(Math.min(15, Math.max(0, Number(e.target.value))))}
+                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="image-spacing-input" className="text-sm font-semibold text-[#0B132B]">
+                  Image Spacing
+                </label>
+                <input
+                  id="image-spacing-input"
+                  type="number"
+                  min={1}
+                  value={imageSpacing}
+                  onChange={(e) => setImageSpacing(Math.max(1, Number(e.target.value)))}
+                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                />
+                <span className="text-[11px] text-[#4B5563]">
+                  Insert 1 image every {imageSpacing} headings.
+                </span>
+              </div>
+            </div>
 
             <fieldset className="space-y-3 border-t border-[#0B132B]/10 pt-4">
               <legend className="text-sm font-semibold text-[#0B132B]">Image Source</legend>

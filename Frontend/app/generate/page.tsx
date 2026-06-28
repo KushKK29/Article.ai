@@ -144,6 +144,9 @@ function HomePageContent() {
   const [autoPublish, setAutoPublish] = useState(false);
   const [scheduledJobs, setScheduledJobs] = useState<any[]>([]);
   const [autoFocusOnLoad, setAutoFocusOnLoad] = useState(false);
+  const [wordCountTarget, setWordCountTarget] = useState(1500);
+  const [imageCount, setImageCount] = useState(5);
+  const [imageSpacing, setImageSpacing] = useState(2);
   const autosaveErrorAtRef = useRef(0);
 
   const currentDraftPayload = useMemo(
@@ -409,7 +412,10 @@ function HomePageContent() {
           topic,
           scheduled_at: isoString,
           auto_publish: autoPublish,
-          image_source: aiGenerated ? "ai_generated" : "stock"
+          image_source: aiGenerated ? "ai_generated" : "stock",
+          word_count_target: wordCountTarget,
+          image_count: imageCount,
+          image_spacing: imageSpacing
         })
       });
 
@@ -462,7 +468,13 @@ function HomePageContent() {
       const response = await authFetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, ai_generated: aiGenerated })
+        body: JSON.stringify({
+          topic,
+          ai_generated: aiGenerated,
+          word_count_target: wordCountTarget,
+          image_count: imageCount,
+          image_spacing: imageSpacing
+        })
       });
 
       if (!response.ok) {
@@ -793,6 +805,12 @@ function HomePageContent() {
               autoPublish={autoPublish}
               setAutoPublish={setAutoPublish}
               onSchedule={handleSchedule}
+              wordCountTarget={wordCountTarget}
+              setWordCountTarget={setWordCountTarget}
+              imageCount={imageCount}
+              setImageCount={setImageCount}
+              imageSpacing={imageSpacing}
+              setImageSpacing={setImageSpacing}
             />
 
             {/* AI Image toggle */}

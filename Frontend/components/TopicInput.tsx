@@ -16,6 +16,14 @@ type TopicInputProps = {
   autoPublish: boolean;
   setAutoPublish: (val: boolean) => void;
   onSchedule: () => Promise<void>;
+
+  // Composition parameters
+  wordCountTarget: number;
+  setWordCountTarget: (val: number) => void;
+  imageCount: number;
+  setImageCount: (val: number) => void;
+  imageSpacing: number;
+  setImageSpacing: (val: number) => void;
 };
 
 export default function TopicInput({
@@ -31,7 +39,13 @@ export default function TopicInput({
   setScheduledAt,
   autoPublish,
   setAutoPublish,
-  onSchedule
+  onSchedule,
+  wordCountTarget,
+  setWordCountTarget,
+  imageCount,
+  setImageCount,
+  imageSpacing,
+  setImageSpacing
 }: TopicInputProps) {
   return (
     <section className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
@@ -68,6 +82,58 @@ export default function TopicInput({
               {preset}
             </button>
           ))}
+        </div>
+
+        {/* Composition Controls */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#0B132B]/10 pt-4">
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="word-count-select" className="text-xs font-mono uppercase tracking-wider text-[#4B5563] font-bold">
+              Target Length
+            </label>
+            <select
+              id="word-count-select"
+              value={wordCountTarget}
+              onChange={(e) => setWordCountTarget(Number(e.target.value))}
+              className="w-full rounded-none border-2 border-[#0B132B] bg-white px-3 py-2 text-sm text-[#0B132B] outline-none focus:ring-2 focus:ring-[#1D4ED8] font-sans"
+            >
+              <option value={500}>500 words (Brief / Flat)</option>
+              <option value={1000}>1000 words (Standard Short)</option>
+              <option value={1500}>1500 words (Default Deep)</option>
+              <option value={2500}>2500 words (Comprehensive / Pillar)</option>
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="image-count-input" className="text-xs font-mono uppercase tracking-wider text-[#4B5563] font-bold">
+              Image Count (0-15)
+            </label>
+            <input
+              id="image-count-input"
+              type="number"
+              min={0}
+              max={15}
+              value={imageCount}
+              onChange={(e) => setImageCount(Math.min(15, Math.max(0, Number(e.target.value))))}
+              className="w-full rounded-none border-2 border-[#0B132B] bg-white px-3 py-2 text-sm text-[#0B132B] outline-none focus:ring-2 focus:ring-[#1D4ED8] font-sans"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="image-spacing-input" className="text-xs font-mono uppercase tracking-wider text-[#4B5563] font-bold">
+              Image Spacing
+            </label>
+            <input
+              id="image-spacing-input"
+              type="number"
+              min={1}
+              value={imageSpacing}
+              onChange={(e) => setImageSpacing(Math.max(1, Number(e.target.value)))}
+              className="w-full rounded-none border-2 border-[#0B132B] bg-white px-3 py-2 text-sm text-[#0B132B] outline-none focus:ring-2 focus:ring-[#1D4ED8] font-sans"
+            />
+            <span className="text-[9px] text-[#4B5563] font-sans -mt-1">
+              Insert 1 image every {imageSpacing} heading{imageSpacing > 1 ? "s" : ""}
+            </span>
+          </div>
         </div>
 
         {/* Schedule Toggle */}

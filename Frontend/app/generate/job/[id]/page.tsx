@@ -21,6 +21,8 @@ interface JobResponse {
   completed_at?: string | null;
   error_message?: string | null;
   result_article_id?: string | null;
+  image_count?: number | null;
+  resolved_image_count?: number | null;
 }
 
 interface ArticleResponse {
@@ -266,6 +268,14 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
                 <div>
                   <h2 className="font-serif text-lg font-extrabold text-[#0B132B]">Manuscript Composition Complete</h2>
                   <p className="text-xs font-mono uppercase text-[#4B5563] mt-1">Ready for print layout, editor feedback, and publishing.</p>
+                  {job.resolved_image_count !== undefined && job.resolved_image_count !== null && job.image_count !== undefined && job.image_count !== null && (
+                    <p className="text-xs font-mono text-[#1D4ED8] mt-2 font-bold" id="job-image-resolution-feedback">
+                      {job.resolved_image_count} images placed 
+                      {job.resolved_image_count < job.image_count && (
+                        <span> (your topic's outline didn't have enough sections to fit the requested {job.image_count})</span>
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Link 

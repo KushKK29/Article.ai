@@ -47,7 +47,7 @@ function buildStructureFromBlocks(blocks: ContentBlock[]) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { topic, ai_generated } = await request.json();
+    const { topic, ai_generated, word_count_target, image_count, image_spacing } = await request.json();
 
     if (!topic || typeof topic !== "string") {
       return NextResponse.json({ error: "Topic is required" }, { status: 400 });
@@ -69,7 +69,10 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         topic,
         image_source: imageSource,
-        include_inline_styles: true
+        include_inline_styles: true,
+        word_count_target: word_count_target ?? 1500,
+        image_count: image_count ?? 5,
+        image_spacing: image_spacing ?? 2
       }),
       cache: "no-store"
     });
