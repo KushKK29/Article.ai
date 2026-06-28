@@ -75,7 +75,7 @@ def should_embed_image(block: Dict[str, Any]) -> tuple[bool, str | None]:
     elif level == 3:
         if _has_tool_mention(block):
             return True, "google"
-        return True, "unsplash"
+        return False, None
     return False, None
 
 
@@ -117,7 +117,10 @@ async def fetch_unsplash_image(client: httpx.AsyncClient, query: str) -> Dict[st
                 }
             logger.info("Unsplash: no results for '%s', trying broader query.", attempt_query)
         except httpx.HTTPStatusError as e:
-            logger.error("Unsplash API error %s for '%s'", e.response.status_code, attempt_query)
+            if e.response.status_code == 403:
+                logger.error("Unsplash API 403 Forbidden: %s (likely Rate Limit Exceeded or Invalid Access Key) for '%s'", e.response.text, attempt_query)
+            else:
+                logger.error("Unsplash API error %s for '%s'", e.response.status_code, attempt_query)
             break  # Don't retry on auth/rate-limit errors
         except Exception as e:
             logger.error("Unsplash fetch failed for '%s': %s", attempt_query, e)
@@ -233,6 +236,10 @@ async def process_single_block(
                 image_data = await fetch_unsplash_image(client, query)
         else:
             image_data = await fetch_unsplash_image(client, query)
+            # Graceful fallback: if Unsplash fails/rate-limited, try Pollen AI
+            if not image_data.get("url"):
+                logger.info("Unsplash failed, falling back to Pollen AI for '%s'", query)
+                image_data = await fetch_pollen_image(client, query)
 
     if image_data.get("url"):
         block["image"] = image_data

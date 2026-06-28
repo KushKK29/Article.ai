@@ -4,6 +4,8 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ContentBlock } from "@/lib/types";
+import { useAuthFetch } from "@/lib/useAuthFetch";
+import RequireAuth from "@/components/RequireAuth";
 
 type JobStatus = "queued" | "processing" | "completed" | "failed";
 type StepName = "keywords" | "outline" | "content" | "images" | "formatting" | "done";
@@ -47,7 +49,16 @@ const STEPS: { name: StepName; label: string; desc: string }[] = [
 ];
 
 export default function JobStatusPage({ params }: { params: { id: string } }) {
+  return (
+    <RequireAuth>
+      <JobStatusPageContent params={params} />
+    </RequireAuth>
+  );
+}
+
+function JobStatusPageContent({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const authFetch = useAuthFetch();
   const [job, setJob] = useState<JobResponse | null>(null);
   const [article, setArticle] = useState<ArticleResponse["article"] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +71,7 @@ export default function JobStatusPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const response = await fetch(`/api/jobs/${jobId}`, { cache: "no-store" });
+        const response = await authFetch(`/api/jobs/${jobId}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Failed to fetch job status");
         }

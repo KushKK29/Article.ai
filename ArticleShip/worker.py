@@ -28,6 +28,27 @@ logger = logging.getLogger("worker")
 load_dotenv()
 
 
+def _job_cost_defaults() -> dict:
+    return {
+        "gemini": {"calls": 0, "input_tokens": 0, "output_tokens": 0},
+        "images": {"calls": 0},
+        "estimated_cost": 0.0,
+    }
+
+
+def _merge_job_cost(job: dict, *, gemini_calls: int = 0, image_calls: int = 0) -> dict:
+    cost = job.get("job_cost") if isinstance(job.get("job_cost"), dict) else {}
+    merged = _job_cost_defaults()
+    if isinstance(cost.get("gemini"), dict):
+        merged["gemini"].update(cost["gemini"])
+    if isinstance(cost.get("images"), dict):
+        merged["images"].update(cost["images"])
+    merged["gemini"]["calls"] = int(merged["gemini"].get("calls", 0)) + gemini_calls
+    merged["images"]["calls"] = int(merged["images"].get("calls", 0)) + image_calls
+    merged["estimated_cost"] = float(cost.get("estimated_cost", 0.0) or 0.0)
+    return merged
+
+
 async def process_job(job, jobs_col):
     job_id = job["_id"]
     topic = job["topic"]
@@ -80,8 +101,10 @@ async def process_job(job, jobs_col):
         article_payload = {
             "meta": hybrid_payload.get("meta", {}),
             "seo_data": hybrid_payload.get("seo_data", {}),
+            "structure": structure,
             "blocks": final_payload.get("blocks", []),
             "html": hybrid_payload.get("html", ""),
+            "content": hybrid_payload.get("html", ""),
             "render_mode": hybrid_payload.get("render_mode", "hybrid_class_plus_optional_inline"),
             "inline_styles_enabled": hybrid_payload.get("inline_styles_enabled", include_inline_styles),
         }
@@ -91,9 +114,14 @@ async def process_job(job, jobs_col):
         result_article_id = saved_art["id"]
         
         # Auto-publish if requested
+        auto_publish_failed = False
         if job.get("auto_publish"):
             logger.info(f"Job {job_id}: auto-publishing article {result_article_id}")
-            publish_article(result_article_id)
+            try:
+                publish_article(result_article_id)
+            except Exception as publish_error:
+                auto_publish_failed = True
+                logger.error(f"Job {job_id}: auto-publish failed: {publish_error}")
         
         # Mark job as completed
         jobs_col.update_one(
@@ -103,7 +131,9 @@ async def process_job(job, jobs_col):
                     "status": "completed",
                     "current_step": "done",
                     "completed_at": utc_now_iso(),
-                    "result_article_id": result_article_id
+                    "result_article_id": result_article_id,
+                    "auto_publish_failed": auto_publish_failed,
+                    "job_cost": _merge_job_cost(job, gemini_calls=3, image_calls=1),
                 }
             }
         )
@@ -131,7 +161,9 @@ async def process_job(job, jobs_col):
                 "$set": {
                     "status": "failed",
                     "completed_at": utc_now_iso(),
-                    "error_message": error_msg
+                    "error_message": error_msg,
+                    "auto_publish_failed": bool(job.get("auto_publish")),
+                    "job_cost": _merge_job_cost(job, gemini_calls=3, image_calls=1),
                 }
             }
         )

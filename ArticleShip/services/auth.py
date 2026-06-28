@@ -121,6 +121,8 @@ def create_user(email: str, plain_password: str) -> Dict[str, Any]:
         "id": uuid4().hex,
         "email": email,
         "hashed_password": hash_password(plain_password),
+        "credits": 0,
+        "usage": {"completed_jobs": 0, "failed_jobs": 0},
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     col.insert_one(user)

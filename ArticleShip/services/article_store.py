@@ -98,7 +98,8 @@ def _has_keywords(payload: Dict[str, Any], topic: str = "") -> bool:
     secondary = keywords.get("secondary_keywords") or []
     long_tail = keywords.get("long_tail_keywords") or []
     lsi = keywords.get("lsi_keywords") or []
-    if any([secondary, long_tail, lsi]):
+    semantic = keywords.get("semantic_keywords") or []
+    if any([secondary, long_tail, lsi, semantic]):
         return True
 
     # Last compatibility fallback: allow legacy articles with a meaningful title/topic.

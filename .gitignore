@@ -45,3 +45,7 @@ Frontend/.env.*
 *.log
 tmp/
 temp/
+.understand-anything/
+AGENTS.md
+attr(ponytail, 'Ponytail'):
+

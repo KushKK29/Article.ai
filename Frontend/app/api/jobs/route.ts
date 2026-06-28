@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
       url += `?status=${status}`;
     }
 
-    const response = await fetch(url, { cache: "no-store" });
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
+    const response = await fetch(url, { headers, cache: "no-store" });
     const data = await response.json();
 
     if (!response.ok) {
@@ -28,13 +34,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(getBackendUrl("/api/v1/schedule_article"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       cache: "no-store"
     });
     const data = await response.json();
+
 
     if (!response.ok) {
       return NextResponse.json({ error: data?.detail || "failed to schedule article" }, { status: response.status });

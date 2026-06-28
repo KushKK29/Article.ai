@@ -57,9 +57,15 @@ export async function POST(request: NextRequest) {
 
     const backendUrl = getBackendEndpointUrl();
 
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const backendResponse = await fetch(backendUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         topic,
         image_source: imageSource,

@@ -2,46 +2,49 @@ import os
 import re
 import json
 import asyncio
+import logging
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from ddgs import DDGS
+from utils.topic_categorizer import categorize_topic
 
 # Load environment variables
 load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+logger = logging.getLogger("StructureBuilder")
 
 
 # ── 1. Retrieval — topic-aware, URL-deduped, titles captured ─────────────────
 def _retrieve_structure_context_sync(topic: str) -> str:
     snippets: list[str] = []
     seen_urls: set[str] = set()
-    topic_lower = topic.lower()
+    category = categorize_topic(topic)
 
     # Issue 1 + 8: topic-aware queries, 4-space indent throughout
     # Fix 1: replaced site: operators — DDGS ignores them silently
-    if any(w in topic_lower for w in ["ai", "llm", "copilot", "cursor", "gpt", "chatgpt"]):
+    if category == "ai":
         queries = [
             f"{topic} real world experience failures",
             f"{topic} implementation mistakes lessons learned",
             f"{topic} vs manual workflow structured guide",
             f"{topic} reddit honest review 2025",
         ]
-    elif any(w in topic_lower for w in ["history", "war", "ancient", "empire", "revolution"]):
+    elif category == "history":
         queries = [
             f"{topic} causes effects structured analysis",
             f"{topic} timeline key events guide",
             f"{topic} common misconceptions myths",
         ]
-    elif any(w in topic_lower for w in ["python", "javascript", "typescript", "rust", "code", "dev", "engineer"]):
+    elif category == "engineering":
         queries = [
             f"{topic} complete implementation guide",
             f"{topic} common pitfalls production mistakes",
             f"{topic} best practices structured 2025",
             f"{topic} developer experience reddit discussion",
         ]
-    elif any(w in topic_lower for w in ["seo", "blog", "ranking", "traffic", "adsense"]):
+    elif category == "seo":
         queries = [
             f"{topic} step by step strategy guide",
             f"{topic} mistakes to avoid 2025",
@@ -129,6 +132,49 @@ def _validate_structure(structure: dict) -> list[str]:
     return errors
 
 
+def _validate_outline_drift(structure: dict, related_questions: list, related_searches: list) -> list[str]:
+    """
+    Validates if the outline H2/H3 headings align with the retrieved search intent questions and queries.
+    Logs warning if drift is detected.
+    """
+    if not related_questions and not related_searches:
+        return []
+
+    # Extract all text from headings
+    headings_text = ""
+    for section in structure.get("sections", []):
+        headings_text += " " + section.get("h2", "")
+        for sub in section.get("subsections", []):
+            headings_text += " " + sub.get("h3", "")
+    
+    headings_words = set(re.findall(r"\w+", headings_text.lower()))
+
+    # Extract words from intent sources
+    intent_text = " ".join(related_questions) + " " + " ".join(related_searches)
+    intent_words = set(re.findall(r"\w+", intent_text.lower()))
+    
+    # Filter out common stop words
+    stop_words = {"the", "a", "an", "and", "or", "for", "with", "in", "on", "at", "to", "of", "is", "are", "how", "why", "what", "which"}
+    intent_keywords = {w for w in intent_words if len(w) > 3 and w not in stop_words}
+    
+    if not intent_keywords:
+        return []
+
+    # Check match ratio
+    matches = intent_keywords.intersection(headings_words)
+    match_ratio = len(matches) / len(intent_keywords)
+    
+    warnings = []
+    if match_ratio < 0.1:  # Low overlap
+        logger.warning(
+            "OUTLINE_DRIFT_WARNING: Generated outline has low topical overlap (%d%%) with search intent questions/searches. Intent keywords: %s, Matches: %s",
+            int(match_ratio * 100), list(intent_keywords)[:10], list(matches)
+        )
+        warnings.append("Outline has low similarity overlap with search intent queries.")
+    
+    return warnings
+
+
 # ── 3. Main entry point ───────────────────────────────────────────────────────
 async def build_article_structure(topic: str, seo_data: dict) -> dict:
     """
@@ -145,6 +191,11 @@ async def build_article_structure(topic: str, seo_data: dict) -> dict:
             "Do not invent competitor references or fabricate statistics."
         )
 
+    # Extract Tavily related questions and Searches from SEO data
+    related_questions = seo_data.get("related_questions", [])
+    related_searches = seo_data.get("related_searches", [])
+    related_qs_str = "\n".join(f"- {q}" for q in related_questions) or "None provided."
+
     # Fix 5: prevent silent empty content_angle reaching the prompt
     content_angle = (
         seo_data.get("content_angle")
@@ -154,6 +205,9 @@ async def build_article_structure(topic: str, seo_data: dict) -> dict:
     prompt = f"""You are a senior Content Strategist and SEO architect. Your task is to generate a deeply structured, SEO-optimized article outline for 'ArticleShip'.
 
 TOPIC: "{topic}"
+
+SEARCH INTENT / RELATED USER QUESTIONS (PAA to address in outline):
+{related_qs_str}
 
 SEARCH CONTEXT (live retrieval snippets — includes competitor titles and body excerpts):
 {search_context}
@@ -194,10 +248,11 @@ STRUCTURE RULES:
    practitioner's guide, rewrite it with a specific claim or outcome.
 
 2. H2s (4–7 required): Each H2 is a major standalone section. Distribute secondary keywords across H2 headings — one secondary keyword per H2 where it fits naturally. Do not force it.
+   REQUIRED: Build H2 and H3 headings to explicitly answer the real user questions listed in the "RELATED USER QUESTIONS" section above, rather than fabricating generic H2s and H3s.
    REQUIRED: At least one H2 must be explicitly failure/risk-focused (e.g. "Where Copilot Actually Failed Us"). Generic positive-only structures will not rank against experienced practitioners who document real problems.
    REQUIRED: No two H2s may overlap in scope. Before finalising, check each H2 pair — if both could contain the same paragraph, one of them is redundant.
 
-3. H3s (2–4 per H2): Break each H2 into focused sub-topics. Use long-tail keywords in H3s where relevant — they signal content depth to Google.
+3. H3s (2–4 per H2): Break each H2 into focused sub-topics. Use semantic keywords in H3s where relevant — they signal content depth to Google.
    REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading (e.g. "The Binary Search Bug That Passed Code Review"). These dramatically increase dwell time and social sharing.
 
 4. H4s (optional, use sparingly): Only add H4s when a sub-topic has 2+ genuinely distinct sub-points. Leave h4_tags as [] if not needed.
@@ -211,8 +266,7 @@ STRUCTURE RULES:
 6. Keyword placement map:
    - Primary keyword → H1 and at least one H2
    - Secondary keywords → H2 headings
-   - Long-tail keywords → H3 headings
-   - LSI keywords → inform H3/H4 topics but need not appear verbatim in headings
+   - Semantic keywords → H3/H4 headings and subheadings (inform content depth)
 
 7. SKIMMABILITY ANCHORS: For each H2, add a skimmability_hook field: a single sentence (max 15 words) that summarises the section's core takeaway.
    REQUIRED: The hook must reflect an actual finding, risk, or outcome — not a generic description of the section. If the search context contains a specific data point or failure mode relevant to this section, use it in the hook.
@@ -221,7 +275,7 @@ STRUCTURE RULES:
 
 8. No redundancy: Every heading must cover a distinct angle. Do not create two H2s that overlap in scope.
 
-9. RETRIEVAL GROUNDING (required): Use the SEARCH CONTEXT to align headings with real search phrasing and practical user questions. Do not copy sentences verbatim, and do not invent named tools/stats not supported by either SEO DATA or search context.
+9. RETRIEVAL GROUNDING (required): Use the SEARCH CONTEXT and RELATED USER QUESTIONS to align headings with real search phrasing and practical user questions. Do not copy sentences verbatim, and do not invent named tools/stats not supported by either SEO DATA or search context.
 
 OUTPUT: A single valid JSON object only. No markdown fences. No explanation. No trailing commas.
 
@@ -252,6 +306,12 @@ Schema:
         raw = re.sub(r"\s*```$", "", raw).strip()
         parsed = _strip_empty_h4s(json.loads(raw))  # Fix 3
         warnings = _validate_structure(parsed)       # Fix 4
+
+        # Validate against search intent drift
+        drift_warnings = _validate_outline_drift(parsed, related_questions, related_searches)
+        if drift_warnings:
+            warnings.extend(drift_warnings)
+
         if warnings:
             parsed["_validation_warnings"] = warnings
         return parsed
@@ -266,3 +326,4 @@ Schema:
             "error": str(e),
             "raw": response.text if response else "API call failed before response",
         }
+

@@ -18,6 +18,8 @@ import {
   ToastMessage,
   ToastType
 } from "@/lib/types";
+import { useAuthFetch } from "@/lib/useAuthFetch";
+import RequireAuth from "@/components/RequireAuth";
 
 const STEPS = ["Generating keywords", "Building structure", "Writing article", "Generating images"];
 const AUTOSAVE_INTERVAL_MS = 25000;
@@ -108,7 +110,16 @@ function ToastBar({
 }
 
 export default function HomePage() {
+  return (
+    <RequireAuth>
+      <HomePageContent />
+    </RequireAuth>
+  );
+}
+
+function HomePageContent() {
   const router = useRouter();
+  const authFetch = useAuthFetch();
   const [topic, setTopic] = useState("");
   const [keywords, setKeywords] = useState<KeywordBundle | null>(null);
   const [structure, setStructure] = useState<ArticleStructure | null>(null);
@@ -367,7 +378,7 @@ export default function HomePage() {
 
   const fetchScheduledJobs = async () => {
     try {
-      const response = await fetch("/api/jobs?status=scheduled", { cache: "no-store" });
+      const response = await authFetch("/api/jobs?status=scheduled", { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         setScheduledJobs(data.jobs || []);
@@ -391,7 +402,7 @@ export default function HomePage() {
       const localDate = new Date(scheduledAt);
       const isoString = localDate.toISOString();
 
-      const response = await fetch("/api/jobs", {
+      const response = await authFetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -424,7 +435,7 @@ export default function HomePage() {
 
   const handleCancelJob = async (jobId: string) => {
     try {
-      const response = await fetch(`/api/jobs/${jobId}`, {
+      const response = await authFetch(`/api/jobs/${jobId}`, {
         method: "DELETE"
       });
       if (response.ok) {
@@ -448,7 +459,7 @@ export default function HomePage() {
 
     setLoading(true);
     try {
-      const response = await fetch("/api/generate", {
+      const response = await authFetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic, ai_generated: aiGenerated })

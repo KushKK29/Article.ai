@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuthFetch } from "@/lib/useAuthFetch";
+import RequireAuth from "@/components/RequireAuth";
 
 type JobItem = {
   _id: string;
@@ -29,7 +31,16 @@ type RouteParams = {
 };
 
 export default function BatchStatusPage({ params }: RouteParams) {
+  return (
+    <RequireAuth>
+      <BatchStatusPageContent params={params} />
+    </RequireAuth>
+  );
+}
+
+function BatchStatusPageContent({ params }: RouteParams) {
   const batchId = params.id;
+  const authFetch = useAuthFetch();
   const [batch, setBatch] = useState<BatchSummary | null>(null);
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +51,7 @@ export default function BatchStatusPage({ params }: RouteParams) {
 
     const fetchBatchStatus = async () => {
       try {
-        const response = await fetch(`/api/batches/${batchId}`, { cache: "no-store" });
+        const response = await authFetch(`/api/batches/${batchId}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("Failed to fetch batch details");
         }

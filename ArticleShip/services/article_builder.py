@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 from ddgs import DDGS
 from services.article_store import list_articles_by_category
+from utils.topic_categorizer import categorize_topic
 
 
 load_dotenv()
@@ -58,28 +59,12 @@ def _retrieve_article_context_sync(topic: str) -> str:
 
     try:
         ddgs = DDGS()
-        topic_lower = topic.lower()
         search_subject = _normalize_search_subject(topic)
         core_terms = _core_search_terms(topic)
         seen_urls: set[str] = set()
 
         # Step 1: Intent detection
-        if any(word in topic_lower for word in ["error", "bug", "fix", "issue"]):
-            category = "debug"
-        elif any(word in topic_lower for word in ["ai", "llm", "model", "copilot", "cursor", "gpt"]):
-            category = "ai"
-        elif any(word in topic_lower for word in ["seo", "adsense", "blog", "ranking", "traffic"]):
-            category = "seo"
-        elif any(word in topic_lower for word in ["history", "war", "ancient", "revolution", "empire"]):
-            category = "history"
-        elif any(word in topic_lower for word in ["movie", "film", "series", "celebrity", "music"]):
-            category = "entertainment"
-        elif any(word in topic_lower for word in ["who is", "biography", "life", "early life"]):
-            category = "biography"
-        elif any(word in topic_lower for word in ["python", "javascript", "typescript", "rust", "golang", "code", "dev", "engineer"]):
-            category = "engineering"
-        else:
-            category = "general"
+        category = categorize_topic(topic)
 
         # Step 2: Category-based queries
         if category == "debug":
@@ -421,8 +406,7 @@ CONTENT ANGLE — lead with this differentiation hook, do not ignore it:
 SEO INTEGRATION:
 - Primary keyword ("{primary_kw}"): MUST appear in the first 2 sentences of the article, in at least one H2 heading verbatim, and in the final paragraph. This is non-negotiable.
 - Secondary keywords: weave into H2/H3 openings naturally — one per section, not clustered.
-- Long-tail keywords: each must appear at least once in body copy as a natural phrase — never bolted on at the end of a sentence.
-- LSI keywords: distribute throughout as supporting vocabulary — they signal topical authority to Google.
+- Semantic keywords: distribute these throughout the body copy as supporting vocabulary and/or long-tail questions/phrases to signal topical depth and authority to Google. At least 5 of these must appear naturally in the text.
 - Search intent: {search_intent} — every section must serve this intent. Do not drift into unrelated subtopics.
 - Never bold keywords or any search phrase in body text. Bold is for subheadings only.
 

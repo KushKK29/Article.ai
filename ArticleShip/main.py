@@ -1,4 +1,5 @@
 import asyncio
+import os
 
 from fastapi import FastAPI, HTTPException, Query, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -223,6 +224,49 @@ class ArticleUpdateRequest(BaseModel):
     topic: str | None = None
     payload: Dict[str, Any]
 
+class RetryJobRequest(BaseModel):
+    pass
+
+def _job_cost_defaults() -> Dict[str, Any]:
+    return {
+        "gemini": {"calls": 0, "input_tokens": 0, "output_tokens": 0},
+        "images": {"calls": 0},
+        "estimated_cost": 0.0,
+    }
+
+def _normalize_job_cost(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return _job_cost_defaults()
+    merged = _job_cost_defaults()
+    for key, default_value in merged.items():
+        if isinstance(default_value, dict):
+            incoming = value.get(key, {})
+            if isinstance(incoming, dict):
+                merged[key] = {**default_value, **incoming}
+        else:
+            merged[key] = value.get(key, default_value)
+    return merged
+
+def _apply_completion_credit(user_id: str) -> None:
+    from services.auth import _get_users_collection
+    users_col = _get_users_collection()
+    users_col.update_one(
+        {"id": user_id},
+        {
+            "$inc": {"credits": 1, "usage.completed_jobs": 1}
+        },
+    )
+
+def _apply_failure_usage(user_id: str) -> None:
+    from services.auth import _get_users_collection
+    users_col = _get_users_collection()
+    users_col.update_one(
+        {"id": user_id},
+        {
+            "$inc": {"usage.failed_jobs": 1}
+        },
+    )
+
 @app.post("/api/v1/keywords", tags=["Keyword Engine"])
 async def get_keywords(request: TopicRequest):
     """
@@ -363,7 +407,10 @@ async def hybrid_html_from_final(request: HybridFinalPayloadRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/generate_full_article_hybrid_html", tags=["End-to-End Orchestrator"])
-async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
+async def generate_full_article_hybrid_html(
+    request: HybridPipelineRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Enqueues a background job to generate a full article with hybrid HTML.
     """
@@ -373,7 +420,7 @@ async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
         jobs_col = get_jobs_collection()
         job_doc = {
             "_id": job_id,
-            "user_id": request.user_id,
+            "user_id": current_user["id"],
             "topic": request.topic,
             "image_source": request.image_source,
             "include_inline_styles": request.include_inline_styles,
@@ -383,7 +430,8 @@ async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
             "started_at": None,
             "completed_at": None,
             "error_message": None,
-            "result_article_id": None
+            "result_article_id": None,
+            "job_cost": _job_cost_defaults(),
         }
         jobs_col.insert_one(job_doc)
         return {"job_id": job_id}
@@ -391,15 +439,24 @@ async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/jobs/{job_id}", tags=["Jobs"])
-async def get_job_status(job_id: str):
+async def get_job_status(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Get the status of a background article generation job.
+    Users can only retrieve their own jobs; returns 404 if job is not found or not owned by user.
     """
     try:
         jobs_col = get_jobs_collection()
         job = jobs_col.find_one({"_id": job_id})
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
+        
+        # Auth: verify the job belongs to the authenticated user
+        if job.get("user_id") != current_user["id"]:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
         return job
     except HTTPException:
         raise
@@ -407,9 +464,13 @@ async def get_job_status(job_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/schedule_article", tags=["End-to-End Orchestrator"])
-async def schedule_article(request: ScheduleArticleRequest):
+async def schedule_article(
+    request: ScheduleArticleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Schedules an article to be generated and published in the future.
+    Authenticated users can only schedule articles for themselves.
     """
     try:
         from uuid import uuid4
@@ -417,7 +478,7 @@ async def schedule_article(request: ScheduleArticleRequest):
         jobs_col = get_jobs_collection()
         job_doc = {
             "_id": job_id,
-            "user_id": request.user_id,
+            "user_id": current_user["id"],
             "topic": request.topic,
             "image_source": request.image_source,
             "include_inline_styles": request.include_inline_styles,
@@ -480,9 +541,13 @@ async def delete_job(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/batches", tags=["Batches"])
-async def create_batch(request: BatchCreateRequest):
+async def create_batch(
+    request: BatchCreateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Submits a batch list of multiple article topics at once.
+    Authenticated users can only create batches for themselves.
     """
     try:
         from uuid import uuid4
@@ -495,7 +560,7 @@ async def create_batch(request: BatchCreateRequest):
         # Insert batch summary document
         batch_doc = {
             "_id": batch_id,
-            "user_id": request.user_id,
+            "user_id": current_user["id"],
             "name": request.name or f"Batch - {utc_now_iso()}",
             "created_at": utc_now_iso(),
             "total_count": len(request.topics),
@@ -518,6 +583,7 @@ async def create_batch(request: BatchCreateRequest):
         job_docs = []
         for idx, topic in enumerate(request.topics):
             job_id = uuid4().hex
+            user_id = current_user["id"]  # Auth: use authenticated user's ID
             
             # Determine scheduled time for this job
             job_scheduled_at = None
@@ -534,7 +600,7 @@ async def create_batch(request: BatchCreateRequest):
             job_doc = {
                 "_id": job_id,
                 "batch_id": batch_id,
-                "user_id": request.user_id,
+                "user_id": user_id,
                 "topic": topic,
                 "image_source": request.image_source,
                 "include_inline_styles": request.include_inline_styles,
@@ -547,7 +613,10 @@ async def create_batch(request: BatchCreateRequest):
                 "started_at": None,
                 "completed_at": None,
                 "error_message": None,
-                "result_article_id": None
+                "result_article_id": None,
+                "retry_count": 0,
+                "auto_publish_failed": False,
+                "job_cost": _job_cost_defaults(),
             }
             job_docs.append(job_doc)
             
@@ -559,9 +628,13 @@ async def create_batch(request: BatchCreateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/batches/{batch_id}", tags=["Batches"])
-async def get_batch(batch_id: str):
+async def get_batch(
+    batch_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
     """
     Get the summary of a batch job and its individual article generation jobs.
+    Users can only retrieve their own batches; returns 404 if batch is not found or not owned by user.
     """
     try:
         batches_col = get_batches_collection()
@@ -570,14 +643,61 @@ async def get_batch(batch_id: str):
         batch = batches_col.find_one({"_id": batch_id})
         if not batch:
             raise HTTPException(status_code=404, detail="Batch not found")
+        
+        # Auth: verify the batch belongs to the authenticated user
+        if batch.get("user_id") != current_user["id"]:
+            raise HTTPException(status_code=404, detail="Batch not found")
             
         # Fetch all jobs in this batch
-        jobs = list(jobs_col.find({"batch_id": batch_id}).sort("created_at", 1))
+        jobs = list(jobs_col.find({"batch_id": batch_id, "user_id": current_user["id"]}).sort("created_at", 1))
         
         return {
             "batch": batch,
             "jobs": jobs
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/jobs/{job_id}/retry", tags=["Jobs"])
+async def retry_job(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    Retry a failed job by resubmitting the same batch item as a new queued job.
+    """
+    try:
+        jobs_col = get_jobs_collection()
+        original_job = jobs_col.find_one({"_id": job_id, "user_id": current_user["id"]})
+        if not original_job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        if original_job.get("status") != "failed":
+            raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+
+        retry_count = int(original_job.get("retry_count") or 0)
+        if retry_count >= 2:
+            raise HTTPException(status_code=400, detail="Retry limit reached")
+
+        from uuid import uuid4
+        new_job_id = uuid4().hex
+        retry_doc = {
+            **{k: v for k, v in original_job.items() if k not in ["_id", "created_at", "started_at", "completed_at", "error_message", "result_article_id", "status", "current_step", "retry_count", "auto_publish_failed"]},
+            "_id": new_job_id,
+            "status": "queued",
+            "current_step": "keywords",
+            "created_at": utc_now_iso(),
+            "started_at": None,
+            "completed_at": None,
+            "error_message": None,
+            "result_article_id": None,
+            "retry_count": retry_count + 1,
+            "auto_publish_failed": False,
+            "job_cost": _job_cost_defaults(),
+        }
+        jobs_col.insert_one(retry_doc)
+        return {"job_id": new_job_id, "retry_count": retry_doc["retry_count"]}
     except HTTPException:
         raise
     except Exception as e:
