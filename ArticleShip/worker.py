@@ -129,14 +129,36 @@ async def process_job(job, jobs_col):
             include_inline_styles=include_inline_styles
         )
         
+        # Extract images list from blocks
+        images_list = []
+        for block in final_payload.get("blocks", []):
+            img = block.get("image")
+            if isinstance(img, dict) and img.get("url"):
+                caption = ""
+                credit = img.get("credit", "").strip()
+                if credit:
+                    caption = f"Image credit: {credit}"
+                else:
+                    caption = img.get("caption", "").strip()
+                images_list.append({
+                    "url": img.get("url"),
+                    "alt": img.get("alt", ""),
+                    "caption": caption
+                })
+
         article_payload = {
             "meta": hybrid_payload.get("meta", {}),
             "seo_data": hybrid_payload.get("seo_data", {}),
+            "keywords": hybrid_payload.get("seo_data", {}),
+            "structure": structure,
             "blocks": final_payload.get("blocks", []),
+            "images": images_list,
+            "content": hybrid_payload.get("html", ""),
             "html": hybrid_payload.get("html", ""),
             "render_mode": hybrid_payload.get("render_mode", "hybrid_class_plus_optional_inline"),
             "inline_styles_enabled": hybrid_payload.get("inline_styles_enabled", include_inline_styles),
         }
+        
         
         # Save article to database
         saved_art = save_article(topic, article_payload)
