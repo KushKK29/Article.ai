@@ -5,12 +5,18 @@ type RouteContext = {
   params: { id: string };
 };
 
-export async function POST(_request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { id } = context.params;
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(getBackendUrl(`/api/v1/articles/${id}/publish`), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       cache: "no-store"
     });
 

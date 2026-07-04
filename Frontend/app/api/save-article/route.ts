@@ -9,15 +9,22 @@ function backendArticlesUrl() {
   return `${base}/api/v1/articles`;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(backendArticlesUrl(), {
       method: "GET",
+      headers,
       cache: "no-store"
     });
     const data = await response.json();
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to fetch articles" }, { status: 502 });
+      return NextResponse.json({ error: data?.detail || "failed to fetch articles" }, { status: response.status });
     }
     return NextResponse.json({ articles: data.articles ?? [] });
   } catch (error) {
@@ -33,15 +40,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "topic is required" }, { status: 400 });
     }
 
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(backendArticlesUrl(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ topic, payload }),
       cache: "no-store"
     });
     const data = await response.json();
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "save failed" }, { status: 502 });
+      return NextResponse.json({ error: data?.detail || "save failed" }, { status: response.status });
     }
     return NextResponse.json(data);
   } catch (error) {

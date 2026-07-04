@@ -11,7 +11,13 @@ export async function GET(request: NextRequest) {
     if (slug) backendUrl.searchParams.set("slug", slug);
     if (status) backendUrl.searchParams.set("status", status);
 
-    const response = await fetch(backendUrl.toString(), { cache: "no-store" });
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
+    const response = await fetch(backendUrl.toString(), { headers, cache: "no-store" });
     const data = await response.json();
 
     if (!response.ok) {

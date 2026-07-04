@@ -5,9 +5,16 @@ type RouteContext = {
   params: { id: string };
 };
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(getBackendUrl(`/api/v1/articles/${context.params.id}`), {
+      headers,
       cache: "no-store"
     });
     const data = await response.json();
@@ -26,9 +33,15 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 export async function PUT(request: NextRequest, context: RouteContext) {
   try {
     const body = await request.json();
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(getBackendUrl(`/api/v1/articles/${context.params.id}`), {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       cache: "no-store"
     });
@@ -45,10 +58,17 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
+    const authHeader = request.headers.get("Authorization");
+    const headers: Record<string, string> = {};
+    if (authHeader) {
+      headers["Authorization"] = authHeader;
+    }
+
     const response = await fetch(getBackendUrl(`/api/v1/articles/${context.params.id}`), {
       method: "DELETE",
+      headers,
       cache: "no-store"
     });
     const data = await response.json();

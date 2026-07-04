@@ -9,8 +9,10 @@ Token strategy
   refresh_token – longer-lived (7 days), stored in an httpOnly cookie
 """
 
+import logging
 import os
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any, Dict
 from uuid import uuid4
 
@@ -23,11 +25,18 @@ from pymongo import MongoClient
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "INSECURE_FALLBACK_CHANGE_ME")
+if JWT_SECRET_KEY == "INSECURE_FALLBACK_CHANGE_ME":
+    logger.warning(
+        "JWT_SECRET_KEY is not set — falling back to an insecure default. "
+        "Set JWT_SECRET_KEY in the environment before deploying anywhere but a local sandbox."
+    )
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -39,13 +48,23 @@ _http_bearer = HTTPBearer(auto_error=True)
 # MongoDB helpers
 # ---------------------------------------------------------------------------
 
-def _get_users_collection():
+@lru_cache(maxsize=1)
+def _get_client() -> MongoClient:
+    # Cached singleton: MongoClient already manages its own connection pool
+    # internally, so creating a fresh one per request/call leaks sockets and
+    # can exhaust MongoDB's connection limit under load.
     mongo_uri = os.getenv("MONGODB_URI", "").strip()
     if not mongo_uri:
         raise ValueError("MONGODB_URI is not configured")
-    db_name = os.getenv("MONGODB_DB_NAME", "ArticleShip").strip() or "ArticleShip"
-    client = MongoClient(mongo_uri)
-    return client[db_name]["users"]
+    return MongoClient(mongo_uri)
+
+
+def _get_users_collection():
+    # NOTE: default matches article_store.py/style_store.py's lowercase "articleship" —
+    # keep these in sync, or an unset MONGODB_DB_NAME would silently split users
+    # into a different database than articles/jobs/batches.
+    db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
+    return _get_client()[db_name]["users"]
 
 
 # ---------------------------------------------------------------------------

@@ -1,15 +1,23 @@
-import os
 import re
 import json
 import asyncio
+import logging
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 from ddgs import DDGS
 from utils.topic_categorizer import categorize_topic
+from services.llm_client import LLMClient
+from services.search.engine import gather_search_context, format_grounding_as_snippets
 
 load_dotenv()
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+logger = logging.getLogger(__name__)
+
+# ── Explicitly pick the provider/model this service uses ──────────────────
+# provider: "gemini" | "openrouter" | "nvidia"
+LLM_PROVIDER = "gemini"
+LLM_MODEL = "gemini-3-flash-preview"
+
+client = LLMClient(LLM_PROVIDER, LLM_MODEL)
 
 
 # ── 1. Multi-query retrieval ──────────────────────────────────────────────────
@@ -80,15 +88,12 @@ def _retrieve_context_sync(topic: str) -> str:
     return "\n\n---\n\n".join(snippets) if snippets else "No context available."
 
 
-# ── 2. Gemini call ────────────────────────────────────────────────────────────
+# ── 2. LLM call ───────────────────────────────────────────────────────────────
 def _generate_keywords_sync(prompt: str):
-    return client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.5,                        # fix 5: was 0.3
-            response_mime_type="application/json",
-        ),
+    return client.generate(
+        prompt,
+        temperature=0.5,                        # fix 5: was 0.3
+        json_mode=True,
     )
 
 
@@ -102,6 +107,19 @@ async def generate_seo_keywords(topic: str) -> dict:
 
     # --- Retrieval Phase ---
     search_context = await asyncio.to_thread(_retrieve_context_sync, topic)
+
+    # DuckDuckGo returned nothing usable — fall back to the paid Tavily/Exa
+    # grounding providers rather than failing the whole request. This only
+    # fires on total DDG failure, so it shouldn't meaningfully touch quota.
+    if search_context == "No context available.":
+        try:
+            grounding = await gather_search_context(topic)
+            formatted = format_grounding_as_snippets(grounding, topic)
+        except Exception as e:
+            logger.warning("Tavily/Exa grounding fallback failed: %s", e)
+            formatted = ""
+        if formatted:
+            search_context = formatted
 
     # Fix 4: guard against ungrounded generation when retrieval fails
     if search_context == "No context available.":

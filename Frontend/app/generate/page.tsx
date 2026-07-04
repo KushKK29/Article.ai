@@ -238,7 +238,7 @@ function HomePageContent() {
     setSavedArticlesFetchFailed(false);
 
     try {
-      const response = await fetch("/api/save-article", { cache: "no-store" });
+      const response = await authFetch("/api/save-article", { cache: "no-store" });
       if (!response.ok) {
         throw new Error("Could not load saved articles");
       }
@@ -295,21 +295,21 @@ function HomePageContent() {
         let response: Response;
 
         if (currentDraftId) {
-          response = await fetch(`/api/articles/${currentDraftId}`, {
+          response = await authFetch(`/api/articles/${currentDraftId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
 
           if (response.status === 404) {
-            response = await fetch("/api/save-article", {
+            response = await authFetch("/api/save-article", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(payload)
             });
           }
         } else {
-          response = await fetch("/api/save-article", {
+          response = await authFetch("/api/save-article", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -351,7 +351,7 @@ function HomePageContent() {
         setIsPersistingDraft(false);
       }
     },
-    [addToast, canPersistDraft, currentDraftId, currentDraftPayload, currentSnapshot, fetchSavedArticles, topic]
+    [addToast, authFetch, canPersistDraft, currentDraftId, currentDraftPayload, currentSnapshot, fetchSavedArticles, topic]
   );
 
   useEffect(() => {
@@ -502,7 +502,7 @@ function HomePageContent() {
 
   const publishArticle = async (articleId: string) => {
     try {
-      const response = await fetch(`/api/articles/${articleId}/publish`, {
+      const response = await authFetch(`/api/articles/${articleId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" }
       });
@@ -522,7 +522,7 @@ function HomePageContent() {
 
   const updateArticle = async (articleId: string, nextTopic: string, nextPayload: Record<string, unknown>) => {
     try {
-      const response = await fetch(`/api/articles/${articleId}`, {
+      const response = await authFetch(`/api/articles/${articleId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: nextTopic, payload: nextPayload })
@@ -543,7 +543,7 @@ function HomePageContent() {
 
   const deleteArticle = async (articleId: string) => {
     try {
-      const response = await fetch(`/api/articles/${articleId}`, {
+      const response = await authFetch(`/api/articles/${articleId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" }
       });

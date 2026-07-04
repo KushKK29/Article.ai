@@ -1,11 +1,11 @@
 import asyncio
 import os
+
 from dotenv import load_dotenv
-
-load_dotenv()
-
 from fastapi import FastAPI, HTTPException, Query, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Dict, Any, List
@@ -33,26 +33,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Set up allowed origins for CORS
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:3002",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:3002",
-]
-
-env_origins = os.getenv("ALLOWED_ORIGINS")
-if env_origins:
-    for o in env_origins.split(","):
-        o_clean = o.strip()
-        if o_clean and o_clean not in origins:
-            origins.append(o_clean)
+_default_dev_origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"]
+_extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=_default_dev_origins + _extra_origins,
     allow_credentials=True,   # needed so the browser sends httpOnly cookies
     allow_methods=["*"],
     allow_headers=["*"],
@@ -100,8 +86,8 @@ async def signup(request: SignupRequest, response: Response):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,   # set to True in production (HTTPS)
-        samesite="lax",
+        secure=True,     # required for SameSite=None; loopback hosts (localhost/127.0.0.1)
+        samesite="none", # are treated as secure contexts, so this also works over local HTTP
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/v1/auth/refresh",
     )
@@ -125,8 +111,8 @@ async def login(request: LoginRequest, response: Response):
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=False,   # set to True in production (HTTPS)
-        samesite="lax",
+        secure=True,     # required for SameSite=None; loopback hosts (localhost/127.0.0.1)
+        samesite="none", # are treated as secure contexts, so this also works over local HTTP
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/v1/auth/refresh",
     )
@@ -156,7 +142,12 @@ async def refresh_access_token(req: Request, response: Response):
 @app.post("/api/v1/auth/logout", tags=["Auth"])
 async def logout(response: Response):
     """Clear the refresh-token cookie."""
-    response.delete_cookie(key="refresh_token", path="/api/v1/auth/refresh")
+    response.delete_cookie(
+        key="refresh_token",
+        path="/api/v1/auth/refresh",
+        secure=True,
+        samesite="none",
+    )
     return {"ok": True}
 
 
@@ -170,11 +161,13 @@ async def search(q: str = Query(...), count: int = 10):
     """
     Search the web using DuckDuckGo.
     """
-    try:
-        results = await perform_ddg_search(q, count)
-        return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Note: perform_ddg_search never raises — it catches its own errors and
+    # returns {"error": ...} with empty results, so surface that as a real
+    # error response instead of silently returning 200 with no results.
+    results = await perform_ddg_search(q, count)
+    if results.get("error"):
+        raise HTTPException(status_code=502, detail=results["error"])
+    return results
 
 
 
@@ -250,7 +243,6 @@ class HybridPipelineRequest(ArticleGenParams):
     topic: str
     image_source: str = "stock"
     include_inline_styles: bool = True
-    user_id: str | None = None
 
 
 class ScheduleArticleRequest(ArticleGenParams):
@@ -473,7 +465,10 @@ async def hybrid_html_from_final(request: HybridFinalPayloadRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/generate_full_article_hybrid_html", tags=["End-to-End Orchestrator"])
-async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
+async def generate_full_article_hybrid_html(
+    request: HybridPipelineRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Enqueues a background job to generate a full article with hybrid HTML.
     """
@@ -483,7 +478,7 @@ async def generate_full_article_hybrid_html(request: HybridPipelineRequest):
         jobs_col = get_jobs_collection()
         job_doc = {
             "_id": job_id,
-            "user_id": request.user_id,
+            "user_id": current_user["id"],
             "topic": request.topic,
             "image_source": request.image_source,
             "include_inline_styles": request.include_inline_styles,
@@ -782,9 +777,10 @@ async def get_saved_articles(
 ):
     """
     Public: returns published articles (for the blog). When a slug is
-    provided the article is returned regardless of auth. For listing
-    without a slug, no auth is required for published articles — the
-    dashboard fetches with auth to scope drafts to the owner.
+    provided the article is returned regardless of auth. Listing anything
+    other than status=published (e.g. drafts, or no filter at all) requires
+    an authenticated caller — otherwise draft content would be downloadable
+    by any anonymous visitor.
     """
     try:
         if slug:
@@ -792,6 +788,16 @@ async def get_saved_articles(
             if not article:
                 raise HTTPException(status_code=404, detail="Article not found")
             return {"article": article}
+
+        if status != "published":
+            auth_header = request.headers.get("authorization") if request else None
+            if not auth_header or not auth_header.lower().startswith("bearer "):
+                raise HTTPException(status_code=401, detail="Authentication required to list non-published articles")
+            token = auth_header.split(" ", 1)[1]
+            payload = decode_token(token)
+            if payload.get("type") != "access" or not payload.get("sub"):
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+
         return {"articles": list_articles(status=status)}
     except HTTPException:
         raise
@@ -799,9 +805,13 @@ async def get_saved_articles(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/articles/{article_id}", tags=["Article Store"])
-async def get_saved_article(article_id: str):
+async def get_saved_article(
+    article_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
-    Returns a single saved article by id.
+    Returns a single saved article by id. Authenticated (dashboard/editor use only —
+    the public blog looks articles up by slug via GET /api/v1/articles?slug=...).
     """
     try:
         article = get_article_by_id(article_id)
@@ -814,7 +824,10 @@ async def get_saved_article(article_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/articles", tags=["Article Store"])
-async def create_saved_article(request: SaveArticleRequest):
+async def create_saved_article(
+    request: SaveArticleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Persists a generated article payload in MongoDB.
     """
@@ -825,7 +838,10 @@ async def create_saved_article(request: SaveArticleRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/articles/{article_id}/publish", tags=["Article Store"])
-async def publish_saved_article(article_id: str):
+async def publish_saved_article(
+    article_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Validates and publishes a saved article, making it publicly available.
     """
@@ -841,6 +857,7 @@ async def publish_saved_article(article_id: str):
 async def track_saved_article_view(article_id: str):
     """
     Increments article view count for analytics tracking.
+    Public: called from the public blog page on every reader pageview.
     """
     try:
         article = track_article_view(article_id)
@@ -851,7 +868,11 @@ async def track_saved_article_view(article_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/v1/articles/{article_id}", tags=["Article Store"])
-async def update_saved_article(article_id: str, request: ArticleUpdateRequest):
+async def update_saved_article(
+    article_id: str,
+    request: ArticleUpdateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Updates a draft article payload and resets publish state so it can be republished.
     """
@@ -864,7 +885,10 @@ async def update_saved_article(article_id: str, request: ArticleUpdateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/v1/articles/{article_id}", tags=["Article Store"])
-async def delete_saved_article(article_id: str):
+async def delete_saved_article(
+    article_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
     """
     Permanently deletes a saved article from MongoDB.
     """

@@ -29,11 +29,17 @@ def _apply_inline_markdown(text: str) -> str:
     return escaped
 
 
+_CODE_FENCE_RE = re.compile(r"^```(\w*)\s*$")
+
+
 def markdown_to_html_fragment(markdown_text: str) -> str:
     lines = markdown_text.splitlines()
     out: List[str] = []
     in_ul = False
     in_ol = False
+    in_code = False
+    code_lang = ""
+    code_lines: List[str] = []
 
     def close_lists() -> None:
         nonlocal in_ul, in_ol
@@ -45,6 +51,23 @@ def markdown_to_html_fragment(markdown_text: str) -> str:
             in_ol = False
 
     for raw in lines:
+        fence_match = _CODE_FENCE_RE.match(raw.strip())
+        if fence_match:
+            if in_code:
+                lang_class = f' class="language-{code_lang}"' if code_lang else ""
+                out.append(f"<pre><code{lang_class}>{html.escape(chr(10).join(code_lines))}</code></pre>")
+                code_lines = []
+                in_code = False
+            else:
+                close_lists()
+                code_lang = fence_match.group(1)
+                in_code = True
+            continue
+
+        if in_code:
+            code_lines.append(raw)
+            continue
+
         line = raw.strip()
         if not line:
             close_lists()
@@ -81,6 +104,11 @@ def markdown_to_html_fragment(markdown_text: str) -> str:
             continue
 
         out.append(f"<p>{_apply_inline_markdown(line)}</p>")
+
+    if in_code:
+        # Unterminated fence (model never closed it) — still render what we have.
+        lang_class = f' class="language-{code_lang}"' if code_lang else ""
+        out.append(f"<pre><code{lang_class}>{html.escape(chr(10).join(code_lines))}</code></pre>")
 
     close_lists()
     return "\n".join(out)

@@ -3,6 +3,7 @@ import re
 import zlib
 from base64 import b64decode, b64encode
 from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Dict, List
 from uuid import uuid4
 
@@ -16,40 +17,32 @@ load_dotenv()
 _CONTENT_COMPRESSION_PREFIX = "zlib64:"
 
 
-def _get_collection():
+@lru_cache(maxsize=1)
+def _get_client() -> MongoClient:
+    # Cached singleton — see services/auth.py for why this must not be
+    # re-created on every call (each MongoClient owns its own connection pool).
     mongo_uri = os.getenv("MONGODB_URI", "").strip()
     if not mongo_uri:
         raise ValueError("MONGODB_URI is not configured")
+    return MongoClient(mongo_uri)
 
+
+def _get_collection():
     db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
     collection_name = os.getenv("MONGODB_COLLECTION", "articles").strip() or "articles"
-
-    client = MongoClient(mongo_uri)
-    return client[db_name][collection_name]
+    return _get_client()[db_name][collection_name]
 
 
 def get_jobs_collection():
-    mongo_uri = os.getenv("MONGODB_URI", "").strip()
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI is not configured")
-
     db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
     collection_name = os.getenv("MONGODB_JOBS_COLLECTION", "jobs").strip() or "jobs"
-
-    client = MongoClient(mongo_uri)
-    return client[db_name][collection_name]
+    return _get_client()[db_name][collection_name]
 
 
 def get_batches_collection():
-    mongo_uri = os.getenv("MONGODB_URI", "").strip()
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI is not configured")
-
     db_name = os.getenv("MONGODB_DB_NAME", "articleship").strip() or "articleship"
     collection_name = os.getenv("MONGODB_BATCHES_COLLECTION", "batches").strip() or "batches"
-
-    client = MongoClient(mongo_uri)
-    return client[db_name][collection_name]
+    return _get_client()[db_name][collection_name]
 
 
 def utc_now_iso() -> str:

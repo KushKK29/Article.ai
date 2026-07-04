@@ -1,14 +1,15 @@
-import os
 import re
 import json
 import asyncio
 import logging
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 from ddgs import DDGS
 from services.article_store import list_articles_by_category
+from services.style_store import get_style_profile
+from services.style_profiler import render_style_guidance
 from utils.topic_categorizer import categorize_topic
+from services.llm_client import LLMClient
+from services.search.engine import gather_search_context, format_grounding_as_snippets
 
 
 load_dotenv()
@@ -16,7 +17,12 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# ── Explicitly pick the provider/model this service uses ──────────────────
+# provider: "gemini" | "openrouter" | "nvidia"
+LLM_PROVIDER = "gemini"
+LLM_MODEL = "gemini-3-flash-preview"
+
+client = LLMClient(LLM_PROVIDER, LLM_MODEL)
 
 BANNED_PHRASES = [
     "In conclusion", "It is important to note",
@@ -57,17 +63,13 @@ def _core_search_terms(topic: str) -> str:
 def _retrieve_article_context_sync(topic: str) -> str:
     snippets: list[str] = []
     topic_lower = topic.lower()
-    seen_urls: set[str] = set()
     category = "general"
-    blocked_domains = [
-        "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
-        "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
-        "cnblogs.com", "36kr.com"
-    ]
 
     try:
         ddgs = DDGS()
         search_subject = _normalize_search_subject(topic)
+        core_terms = _core_search_terms(topic)
+        seen_urls: set[str] = set()
 
         # Step 1: Intent detection
         category = categorize_topic(topic)
@@ -162,6 +164,11 @@ def _retrieve_article_context_sync(topic: str) -> str:
             return 1
 
         temp_results = []
+        blocked_domains = [
+            "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
+            "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
+            "cnblogs.com", "36kr.com"
+        ]
 
         for query in queries:
             try:
@@ -356,38 +363,53 @@ def select_related_articles(
     ][:max_results]
 
 
+def _get_style_guidance_block(topic: str) -> str:
+    """
+    Look up the learned human-writing-style fingerprint (see train_style_model.py)
+    for this topic's category, falling back to the global profile. Returns ""
+    if no model has been trained yet or the DB isn't reachable, so generation
+    never hard-fails on a missing/untrained style model.
+    """
+    try:
+        category = categorize_topic(topic)
+        profile = get_style_profile(name=category) or get_style_profile(name="global")
+        if not profile:
+            return ""
+        return render_style_guidance(profile)
+    except Exception as e:
+        logger.warning("Style profile lookup skipped: %s", e)
+        return ""
+
+
 def build_prompt(topic: str, seo_data: dict, structure: dict,
                  search_context: str,
                  banned_phrases: list[str] = BANNED_PHRASES,
                  related_articles: list[dict] | None = None,
-                 word_count_target: int = 1500) -> str:
+                 word_count_target: int = 1500,
+                 style_guidance: str = "") -> str:
     primary_kw = seo_data.get("primary_keyword", "")
     search_intent = seo_data.get("search_intent", "Informational")
     banned = ', '.join(f'"{p}"' for p in banned_phrases)
 
+    # Helper for depth targets based on word_count_target
+    def _get_depth_targets(target: int) -> str:
+        if target <= 500:
+            return "- H2 sections: 150–200 words.\n       - H3/H4 sections: N/A (no subheadings should be used in this short tier)."
+        elif target <= 1000:
+            return "- H2 sections: 200–250 words.\n       - H3 sections: 100–130 words.\n       - H4 sections: N/A."
+        elif target <= 1500:
+            return "- H2 sections: 250–400 words.\n       - H3 sections: 150–220 words.\n       - H4 sections: 80–130 words."
+        else:
+            return "- H2 sections: 300–450 words.\n       - H3 sections: 180–250 words.\n       - H4 sections: 100–150 words."
+
+    # Programmatically determine image slot assignment expectations
+    assigned_slots = structure.get("assigned_image_slots", [])
     flat_headings = []
     for sec in structure.get("sections", []):
         flat_headings.append(sec.get("h2", ""))
         for sub in sec.get("subsections", []):
             flat_headings.append(sub.get("h3", ""))
 
-    num_sections = len(flat_headings)
-    if num_sections > 0:
-        # Subtract 100 words for introduction and metadata, then divide by num_sections
-        target_words_per_section = max(60, int((word_count_target - 100) / num_sections))
-    else:
-        target_words_per_section = 150
-
-    # Helper for depth targets based on word_count_target
-    def _get_depth_targets(target: int) -> str:
-        return (
-            f"- H2 & H3 section length target: approximately {target_words_per_section} words each.\n"
-            f"       - Overall article target length: {target} words total (excluding metadata).\n"
-            f"       - Do NOT exceed these lengths. Keep your descriptions tight, direct, and concise."
-        )
-
-    # Programmatically determine image slot assignment expectations
-    assigned_slots = structure.get("assigned_image_slots", [])
     image_headings = []
     for idx in assigned_slots:
         if idx < len(flat_headings):
@@ -425,6 +447,12 @@ def build_prompt(topic: str, seo_data: dict, structure: dict,
             "(fewer than 2 published articles exist in this category). "
             "Do NOT add any internal links — not even placeholder anchors."
         )
+
+    _style_block = (
+        f"\n\n4b. {style_guidance}\n"
+        if style_guidance
+        else ""
+    )
 
     return f"""You are a senior technical writer and SEO strategist with 10+ years of experience writing for high-authority publications (Wired, Smashing Magazine, TechCrunch). You write like a domain expert who has actually done the work — opinionated, specific, occasionally contrarian, and never generic. You are not an AI assistant summarizing the internet. You are a practitioner sharing hard-won experience.
 
@@ -494,7 +522,7 @@ WRITING RULES:
 
 4. AUTHORSHIP IDENTITY SIGNAL (new — addresses "no personal identity" problem)
    Do NOT invent a specific named author role, employer, project name, or personal biography. Voice should be confident and experienced in TONE without fabricating WHO is speaking or WHAT specific project they worked on. Use general practitioner framing ('in practice,' 'teams commonly find') instead of fabricated first-person backstory.
-
+{_style_block}
 5. UNIQUE INSIGHT REQUIREMENT (critical — addresses "AI slop" problem)
    Every H2 section MUST contain at least one of the following:
 
@@ -723,7 +751,7 @@ async def generate_article_content(
     structure: dict,
     *,
     related_articles: list[dict] | None = None,
-    model: str = "gemini-3-flash-preview",
+    model: str = LLM_MODEL,
     temperature: float = 0.7,
     word_count_target: int = 1500,
 ) -> str:
@@ -731,25 +759,37 @@ async def generate_article_content(
     Generate full article markdown from topic, SEO data, and locked structure.
     """
     search_context = await asyncio.to_thread(_retrieve_article_context_sync, topic)
+
+    # DuckDuckGo returned nothing usable — fall back to the paid Tavily/Exa
+    # grounding providers rather than writing the article ungrounded.
+    if search_context.startswith("No high-quality live context available for:"):
+        try:
+            grounding = await gather_search_context(topic)
+            formatted = format_grounding_as_snippets(grounding, topic)
+        except Exception as e:
+            logger.warning("Tavily/Exa grounding fallback failed: %s", e)
+            formatted = ""
+        if formatted:
+            search_context = formatted
+
+    style_guidance = await asyncio.to_thread(_get_style_guidance_block, topic)
     prompt = build_prompt(
         topic,
         seo_data,
         structure,
         search_context,
         related_articles=related_articles,
-        word_count_target=word_count_target
+        word_count_target=word_count_target,
+        style_guidance=style_guidance,
     )
 
     try:
         response = await asyncio.to_thread(
-            client.models.generate_content,
+            client.generate,
+            prompt,
             model=model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=temperature,
-                max_output_tokens=12192,
-                candidate_count=1,
-            ),
+            temperature=temperature,
+            max_output_tokens=12192,
         )
 
         article = (response.text or "").strip()
@@ -758,43 +798,6 @@ async def generate_article_content(
             raise ValueError("Model returned an empty response.")
 
         logger.info("Article generated - approx %d words", len(article.split()))
-
-        # Post-generation validation: Audit image slots and log any deviations
-        try:
-            from services.content_mapper import parse_markdown_to_mapping
-            blocks = parse_markdown_to_mapping(article)
-            
-            assigned_slots = structure.get("assigned_image_slots", [])
-            h2_h3_idx = 0
-            actual_slots = []
-            
-            for block in blocks:
-                level = block.get("level", 0)
-                if level in (2, 3):
-                    has_marker = bool(re.search(r"\[IMAGE ALT:[^\]]*\]", block.get("content", ""), re.IGNORECASE))
-                    if has_marker:
-                        actual_slots.append(h2_h3_idx)
-                    h2_h3_idx += 1
-            
-            if actual_slots != assigned_slots:
-                logger.warning(
-                    "IMAGE_SLOT_MISMATCH: Model did not place alt tags at the assigned heading indices. "
-                    "Assigned: %s, Actual generated: %s",
-                    assigned_slots,
-                    actual_slots
-                )
-            else:
-                logger.info("IMAGE_SLOT_VALIDATION: All image slots matched assigned slots perfectly.")
-
-            # Audit the self-check line itself
-            audit_match = re.search(r"^ALT_TAG_AUDIT:\s*(.*)$", article, re.MULTILINE | re.IGNORECASE)
-            if audit_match:
-                logger.info("Parsed ALT_TAG_AUDIT line from model: %s", audit_match.group(0).strip())
-            else:
-                logger.warning("ALT_TAG_AUDIT_MISSING: Model did not emit the ALT_TAG_AUDIT line.")
-        except Exception as audit_err:
-            logger.error("Failed to run post-generation image slot audit: %s", audit_err)
-
         return article
 
     except Exception as e:

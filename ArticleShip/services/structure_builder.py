@@ -1,4 +1,3 @@
-import os
 import re
 import json
 import asyncio
@@ -6,16 +5,21 @@ import logging
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
-from google import genai
-from google.genai import types
 from ddgs import DDGS
 from utils.topic_categorizer import categorize_topic
 from utils.constants import MAX_IMAGE_COUNT
+from services.llm_client import LLMClient
+from services.search.engine import gather_search_context, format_grounding_as_snippets
 
 # Load environment variables
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# ── Explicitly pick the provider/model this service uses ──────────────────
+# provider: "gemini" | "openrouter" | "nvidia"
+LLM_PROVIDER = "gemini"
+LLM_MODEL = "gemini-3-flash-preview"
+
+client = LLMClient(LLM_PROVIDER, LLM_MODEL)
 
 
 # ── 1. Retrieval — topic-aware, URL-deduped, titles captured ─────────────────
@@ -88,15 +92,12 @@ def _retrieve_structure_context_sync(topic: str) -> str:
     return "\n\n---\n\n".join(snippets) if snippets else "No context available."
 
 
-# ── 2. Gemini call — temperature now explicit ─────────────────────────────────
+# ── 2. LLM call — temperature now explicit ────────────────────────────────────
 def _generate_structure_sync(prompt: str):
-    return client.models.generate_content(
-        model="gemini-3-flash-preview",
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.4,
-        ),
+    return client.generate(
+        prompt,
+        temperature=0.4,
+        json_mode=True,
     )
 
 
@@ -120,10 +121,6 @@ def _validate_structure(structure: dict, word_count_target: int = 1500) -> list[
         min_h2 = 2
     elif word_count_target <= 1000:
         min_h2 = 3
-    elif word_count_target <= 1500:
-        min_h2 = 3
-    else:
-        min_h2 = 5
 
     if len(sections) < min_h2:
         errors.append(f"Too few H2s: {len(sections)} (minimum {min_h2})")
@@ -152,52 +149,31 @@ def _compute_heading_targets(word_count_target: int) -> dict:
     Computes targeting ranges for structure generation based on word count.
     """
     if word_count_target <= 500:
-        h3_rules = (
-            "H3s (Prohibited): Do NOT generate any H3 sub-topics or subsections. "
-            "Keep the structure flat and H2-only for brevity. The 'subsections' array "
-            "for each section in the JSON output MUST be empty []."
-        )
         return {
             "h2_min": 2,
             "h2_max": 3,
-            "h3_rules": h3_rules,
+            "h3_guideline": "Do not add H3 sub-topics (keep the structure flat and H2-only for brevity).",
             "total_headings": 3
         }
     elif word_count_target <= 1000:
-        h3_rules = (
-            "H3s (1–2 per H2): Break H2s into 1-2 light H3 sub-topics where it helps readability. "
-            "REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading "
-            "(e.g., 'The Binary Search Bug That Passed Code Review')."
-        )
         return {
             "h2_min": 3,
-            "h2_max": 4,
-            "h3_rules": h3_rules,
+            "h2_max": 5,
+            "h3_guideline": "Break H2s into 1-2 light H3 sub-topics where it helps readability.",
             "total_headings": 5
         }
     elif word_count_target <= 1500:
-        h3_rules = (
-            "H3s (2–3 per H2): Break each H2 into 2–3 focused H3 sub-topics. "
-            "REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading "
-            "(e.g., 'The Binary Search Bug That Passed Code Review')."
-        )
         return {
-            "h2_min": 3,
-            "h2_max": 4,
-            "h3_rules": h3_rules,
+            "h2_min": 4,
+            "h2_max": 7,
+            "h3_guideline": "Break each H2 into 2–4 focused H3 sub-topics.",
             "total_headings": 10
         }
     else:  # 2500
-        h3_rules = (
-            "H3s (2–4 per H2): Break each H2 into 2–4 focused H3 sub-topics, using H4s under H3s if sub-topics "
-            "have multiple distinct sub-points. "
-            "REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading "
-            "(e.g., 'The Binary Search Bug That Passed Code Review')."
-        )
         return {
-            "h2_min": 5,
-            "h2_max": 7,
-            "h3_rules": h3_rules,
+            "h2_min": 6,
+            "h2_max": 9,
+            "h3_guideline": "Break each H2 into 2–4 focused H3 sub-topics, using H4s under H3s if sub-topics have multiple distinct sub-points.",
             "total_headings": 18
         }
 
@@ -251,6 +227,18 @@ async def build_article_structure(
     and creates a structured article outline with proper H1, H2, H3 hierarchy.
     """
     search_context = await asyncio.to_thread(_retrieve_structure_context_sync, topic)
+
+    # DuckDuckGo returned nothing usable — fall back to the paid Tavily/Exa
+    # grounding providers rather than degrading straight to no-context mode.
+    if search_context == "No context available.":
+        try:
+            grounding = await gather_search_context(topic)
+            formatted = format_grounding_as_snippets(grounding, topic)
+        except Exception as e:
+            logger.warning("Tavily/Exa grounding fallback failed: %s", e)
+            formatted = ""
+        if formatted:
+            search_context = formatted
 
     # Fix 2: soft degraded fallback — better a warned output than no output at all
     if search_context == "No context available.":
@@ -316,7 +304,8 @@ STRUCTURE RULES:
    REQUIRED: No two H2s may overlap in scope. Before finalising, check each H2 pair — if both could contain the same paragraph, one of them is redundant.
    REQUIRED: Generate approximately {targets['total_headings']} total headings (H2+H3 combined) to fit a {word_count_target}-word article.
 
-3. {targets['h3_rules']}
+3. H3s ({targets['h3_guideline']}): Break each H2 into focused sub-topics. Use long-tail keywords in H3s where relevant — they signal content depth to Google.
+   REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading (e.g. "The Binary Search Bug That Passed Code Review"). These dramatically increase dwell time and social sharing.
 
 4. H4s (optional, use sparingly): Only add H4s when a sub-topic has 2+ genuinely distinct sub-points. Leave h4_tags as [] if not needed.
 

@@ -2,6 +2,7 @@ import os
 import sys
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from pymongo import ReturnDocument
 from dotenv import load_dotenv
 
@@ -76,10 +77,10 @@ async def process_job(job, jobs_col):
             image_count=image_count,
             image_spacing=image_spacing
         )
-        
+
         if "error" in structure:
             raise ValueError(f"Structure generation failed: {structure['error']}")
-        
+
         # Save resolved image slots and count back to the job document
         jobs_col.update_one(
             {"_id": job_id},
@@ -159,7 +160,6 @@ async def process_job(job, jobs_col):
             "inline_styles_enabled": hybrid_payload.get("inline_styles_enabled", include_inline_styles),
         }
         
-        
         # Save article to database
         saved_art = save_article(topic, article_payload)
         result_article_id = saved_art["id"]
@@ -231,6 +231,10 @@ async def process_job(job, jobs_col):
                 logger.error(f"Failed to increment batch failed count: {batch_err}")
 
 
+STALE_PROCESSING_MINUTES = 20
+MAX_STALE_RECOVERIES = 2
+
+
 async def main_loop():
     logger.info("Background worker started. Polling MongoDB for queued jobs...")
     try:
@@ -242,9 +246,15 @@ async def main_loop():
     while True:
         try:
             # Atomic claim: Status=queued OR (status=scheduled AND scheduled_at <= now())
+            # OR (status=processing AND started_at is older than the stale threshold —
+            # e.g. the worker process crashed/redeployed mid-job, leaving it stuck forever).
             # This serves as the locking mechanism: find_one_and_update is atomic,
             # meaning only one worker instance can claim a given job.
             now_iso = utc_now_iso()
+            stale_cutoff_iso = (
+                datetime.now(timezone.utc) - timedelta(minutes=STALE_PROCESSING_MINUTES)
+            ).isoformat().replace("+00:00", "Z")
+
             job = jobs_col.find_one_and_update(
                 {
                     "$or": [
@@ -252,6 +262,11 @@ async def main_loop():
                         {
                             "status": "scheduled",
                             "scheduled_at": {"$lte": now_iso}
+                        },
+                        {
+                            "status": "processing",
+                            "started_at": {"$lte": stale_cutoff_iso},
+                            "stale_recovery_count": {"$lt": MAX_STALE_RECOVERIES}
                         }
                     ]
                 },
@@ -260,17 +275,41 @@ async def main_loop():
                         "status": "processing",
                         "started_at": now_iso,
                         "current_step": "keywords"
-                    }
+                    },
+                    "$inc": {"stale_recovery_count": 1}
                 },
                 sort=[("created_at", 1)],
                 return_document=ReturnDocument.AFTER
             )
-            
+
             if job:
+                if int(job.get("stale_recovery_count") or 0) > 1:
+                    logger.warning(
+                        f"Job {job['_id']} reclaimed from a stale 'processing' state "
+                        f"(recovery #{job['stale_recovery_count']})."
+                    )
                 # Run the job
                 await process_job(job, jobs_col)
             else:
-                # No jobs found, sleep for 2 seconds
+                # No claimable job. Sweep jobs that are stuck in "processing" past the
+                # stale threshold AND have already exhausted their auto-recovery
+                # attempts — otherwise they'd sit invisibly in "processing" forever.
+                exhausted = jobs_col.update_many(
+                    {
+                        "status": "processing",
+                        "started_at": {"$lte": stale_cutoff_iso},
+                        "stale_recovery_count": {"$gte": MAX_STALE_RECOVERIES}
+                    },
+                    {
+                        "$set": {
+                            "status": "failed",
+                            "completed_at": now_iso,
+                            "error_message": "Job repeatedly failed to complete (worker crashed or hung); exceeded stale-recovery attempts.",
+                        }
+                    }
+                )
+                if exhausted.modified_count:
+                    logger.warning(f"Marked {exhausted.modified_count} exhausted stale job(s) as failed.")
                 await asyncio.sleep(2)
         except Exception as e:
             logger.error(f"Error in main polling loop: {e}")

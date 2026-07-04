@@ -169,6 +169,9 @@ def _is_list_item(line: str) -> bool:
     return bool(re.match(r"^[-*+]\s+", line) or re.match(r"^\d+\.\s+", line))
 
 
+_CODE_FENCE_RE = re.compile(r"^```(\w*)\s*$")
+
+
 def _markdown_body_to_html(text: str, include_inline_styles: bool) -> str:
     """
     Convert the cleaned body text of a block to HTML paragraphs, lists, blockquotes.
@@ -183,6 +186,9 @@ def _markdown_body_to_html(text: str, include_inline_styles: bool) -> str:
 
     out: List[str] = []
     in_ul = in_ol = False
+    in_code = False
+    code_lang = ""
+    code_lines: List[str] = []
 
     def close_lists() -> None:
         nonlocal in_ul, in_ol
@@ -193,9 +199,36 @@ def _markdown_body_to_html(text: str, include_inline_styles: bool) -> str:
             out.append("</ol>")
             in_ol = False
 
+    def close_code() -> None:
+        nonlocal in_code, code_lang, code_lines
+        lang_class = f' class="language-{code_lang}"' if code_lang else ""
+        out.append(
+            f'<pre class="content-code"><code{lang_class}>'
+            f'{html.escape(chr(10).join(code_lines))}</code></pre>'
+        )
+        in_code = False
+        code_lang = ""
+        code_lines = []
+
     i = 0
     while i < len(stripped):
         line = stripped[i]
+
+        fence_match = _CODE_FENCE_RE.match(line)
+        if fence_match:
+            if in_code:
+                close_code()
+            else:
+                close_lists()
+                code_lang = fence_match.group(1)
+                in_code = True
+            i += 1
+            continue
+
+        if in_code:
+            code_lines.append(lines[i])
+            i += 1
+            continue
 
         # Blank line — only close list if the next non-empty line is NOT a list item
         if not line:
@@ -251,6 +284,10 @@ def _markdown_body_to_html(text: str, include_inline_styles: bool) -> str:
             f'{_apply_inline_markdown(line)}</p>'
         )
         i += 1
+
+    if in_code:
+        # Unterminated fence (model never closed it) — still render what we have.
+        close_code()
 
     close_lists()
     return "\n".join(out)

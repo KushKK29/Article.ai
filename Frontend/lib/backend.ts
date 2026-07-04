@@ -1,4 +1,4 @@
-const LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000";
+const LOCAL_BACKEND_BASE_URL = "http://localhost:8000";
 const PRODUCTION_BACKEND_BASE_URL = "https://article-ai-fs42.onrender.com";
 
 export function getBackendBaseUrl() {

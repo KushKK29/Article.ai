@@ -83,7 +83,7 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
 
         if (data.status === "completed" && data.result_article_id) {
           // Fetch finished article
-          const artResponse = await fetch(`/api/articles/${data.result_article_id}`, { cache: "no-store" });
+          const artResponse = await authFetch(`/api/articles/${data.result_article_id}`, { cache: "no-store" });
           if (artResponse.ok) {
             const artData: ArticleResponse = await artResponse.json();
             setArticle(artData.article);

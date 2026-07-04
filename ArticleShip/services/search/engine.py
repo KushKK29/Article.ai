@@ -429,3 +429,29 @@ async def gather_search_context(topic: str) -> Dict[str, Any]:
 
     return result_data
 
+
+def format_grounding_as_snippets(grounding: Dict[str, Any], topic: str) -> str:
+    """
+    Formats gather_search_context() output (Tavily + Exa) into the same
+    "TITLE: ...\\nURL: ...\\nINSIGHT: ..." snippet-block format the DDG-based
+    retrieval helpers in keyword_engine.py / structure_builder.py /
+    article_builder.py already produce, so it can be dropped straight into
+    their prompts as a same-shape fallback when DuckDuckGo returns nothing.
+    """
+    snippets: List[str] = []
+
+    for page in grounding.get("competing_pages", []) or []:
+        title = str(page.get("title") or "").strip()
+        url = str(page.get("url") or "").strip()
+        content = str(page.get("snippet_or_summary") or "").strip()
+        if not (title or content):
+            continue
+        snippets.append(f"TITLE: {title}\nURL: {url}\nINSIGHT: {content[:500]}")
+
+    related_qs = [str(q).strip() for q in (grounding.get("related_questions") or []) if str(q).strip()]
+    if related_qs:
+        joined = " | ".join(related_qs[:5])
+        snippets.append(f"TITLE: Related questions for '{topic}'\nURL: \nINSIGHT: {joined}")
+
+    return "\n\n---\n\n".join(snippets)
+

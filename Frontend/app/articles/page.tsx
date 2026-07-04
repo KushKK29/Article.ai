@@ -3,10 +3,21 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SavedArticleRecord } from "@/components/SavedArticleWorkbench";
+import { useAuthFetch } from "@/lib/useAuthFetch";
+import RequireAuth from "@/components/RequireAuth";
 
 const ITEMS_PER_PAGE = 12;
 
 export default function ArticlesPage() {
+  return (
+    <RequireAuth>
+      <ArticlesPageContent />
+    </RequireAuth>
+  );
+}
+
+function ArticlesPageContent() {
+  const authFetch = useAuthFetch();
   const [articles, setArticles] = useState<SavedArticleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -20,7 +31,7 @@ export default function ArticlesPage() {
   useEffect(() => {
     async function loadArticles() {
       try {
-        const res = await fetch("/api/articles");
+        const res = await authFetch("/api/articles");
         if (!res.ok) throw new Error("Failed to load");
         const data = await res.json();
         setArticles(data.articles || []);
