@@ -8,22 +8,22 @@ export default function PrintActions() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-4 border-y border-[#0B132B]/10 py-3 my-8 font-mono text-[10px] font-bold uppercase tracking-wider">
+    <div className="flex flex-wrap items-center gap-4 border-y border-[color-mix(in_srgb,var(--ink)_10%,transparent)] py-3 my-8 font-mono text-[10px] font-bold uppercase tracking-wider">
       <button
         type="button"
         onClick={handlePrint}
-        className="text-[#1E3A8A] hover:text-[#1D4ED8] transition-colors"
+        className="text-[var(--accent-deep)] hover:text-[var(--accent)] transition-colors"
       >
         [ Print Archival Manuscript ]
       </button>
-      <span className="text-[#0B132B]/10">|</span>
+      <span className="text-[color-mix(in_srgb,var(--ink)_10%,transparent)]">|</span>
       <button
         type="button"
         onClick={() => {
           navigator.clipboard.writeText(window.location.href);
           alert("Manuscript URL copied to clipboard.");
         }}
-        className="text-[#0B132B] hover:text-[#1D4ED8] transition-colors"
+        className="text-[var(--ink)] hover:text-[var(--accent)] transition-colors"
       >
         [ Copy Dispatch Link ]
       </button>

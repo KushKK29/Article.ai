@@ -56,14 +56,14 @@ export default function ContactPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-16 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <div className="mx-auto max-w-[800px] space-y-12">
         
         {/* Header Block */}
-        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Editorial Registry</p>
+        <header className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--accent)]">Editorial Registry</p>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Contact the Desk</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">
             Submit your inquiry. We typically respond within 24 hours.
           </p>
         </header>
@@ -71,8 +71,8 @@ export default function ContactPage() {
         <div className="grid gap-12 md:grid-cols-[1fr_260px]">
           
           {/* Main Form */}
-          <form onSubmit={handleSubmit} className="space-y-6 bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
-            <h2 className="text-lg font-extrabold font-serif border-b border-[#0B132B]/10 pb-2">Manuscript Dispatch Form</h2>
+          <form onSubmit={handleSubmit} className="space-y-6 bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">
+            <h2 className="text-lg font-extrabold font-serif border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">Manuscript Dispatch Form</h2>
             
             {successMsg && (
               <div className="bg-emerald-50 border border-emerald-500 text-emerald-800 p-4 font-mono text-[10px] uppercase tracking-wider">
@@ -86,7 +86,7 @@ export default function ContactPage() {
             )}
 
             <div className="space-y-2">
-              <label htmlFor="name" className="block font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">Sender Name</label>
+              <label htmlFor="name" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">Sender Name</label>
               <input
                 id="name"
                 name="name"
@@ -94,13 +94,13 @@ export default function ContactPage() {
                 required
                 value={formData.name}
                 onChange={handleChange}
-                className="w-full bg-[#F4F6F9] border-2 border-[#0B132B] p-3 rounded-none font-sans text-sm text-[#0B132B] focus:outline-none focus:border-[#1D4ED8] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
+                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] p-3 rounded-none font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
                 placeholder="e.g. Kush Goel"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="email" className="block font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">Return Address (Email)</label>
+              <label htmlFor="email" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">Return Address (Email)</label>
               <input
                 id="email"
                 name="email"
@@ -108,13 +108,13 @@ export default function ContactPage() {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full bg-[#F4F6F9] border-2 border-[#0B132B] p-3 rounded-none font-sans text-sm text-[#0B132B] focus:outline-none focus:border-[#1D4ED8] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
+                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] p-3 rounded-none font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
                 placeholder="you@domain.com"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="subject" className="block font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">Inquiry Subject</label>
+              <label htmlFor="subject" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">Inquiry Subject</label>
               <input
                 id="subject"
                 name="subject"
@@ -122,13 +122,13 @@ export default function ContactPage() {
                 required
                 value={formData.subject}
                 onChange={handleChange}
-                className="w-full bg-[#F4F6F9] border-2 border-[#0B132B] p-3 rounded-none font-sans text-sm text-[#0B132B] focus:outline-none focus:border-[#1D4ED8] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
+                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] p-3 rounded-none font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
                 placeholder="e.g. Custom Pricing Petition"
               />
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="message" className="block font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">Manuscript Details</label>
+              <label htmlFor="message" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">Manuscript Details</label>
               <textarea
                 id="message"
                 name="message"
@@ -136,7 +136,7 @@ export default function ContactPage() {
                 rows={5}
                 value={formData.message}
                 onChange={handleChange}
-                className="w-full bg-[#F4F6F9] border-2 border-[#0B132B] p-3 rounded-none font-sans text-sm text-[#0B132B] focus:outline-none focus:border-[#1D4ED8] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
+                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] p-3 rounded-none font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all"
                 placeholder="Enter details of your inquiry here..."
               />
             </div>
@@ -144,27 +144,27 @@ export default function ContactPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#0B132B] text-white py-3.5 text-xs font-mono font-bold uppercase tracking-wider rounded-none shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
+              className="w-full bg-[var(--ink)] text-[var(--paper)] py-3.5 text-xs font-mono font-bold uppercase tracking-wider rounded-none shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
             >
               {loading ? "Transmitting..." : "Transmit Dispatch"}
             </button>
           </form>
 
           {/* Sidebar details */}
-          <aside className="space-y-6 font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">
-            <div className="border-b border-[#0B132B]/10 pb-4">
-              <h3 className="font-bold text-[#0B132B] mb-2">Registry Office</h3>
+          <aside className="space-y-6 font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
+            <div className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4">
+              <h3 className="font-bold text-[var(--ink)] mb-2">Registry Office</h3>
               <p>ArticleShip Publishing</p>
               <p>Editorial Desk</p>
             </div>
-            <div className="border-b border-[#0B132B]/10 pb-4">
-              <h3 className="font-bold text-[#0B132B] mb-2">Direct Mail</h3>
-              <a href="mailto:support@articleship.com" className="text-[#1E3A8A] font-bold hover:underline">
+            <div className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4">
+              <h3 className="font-bold text-[var(--ink)] mb-2">Direct Mail</h3>
+              <a href="mailto:support@articleship.com" className="text-[var(--accent-deep)] font-bold hover:underline">
                 support@articleship.com
               </a>
             </div>
             <div>
-              <h3 className="font-bold text-[#0B132B] mb-2">Publishing Status</h3>
+              <h3 className="font-bold text-[var(--ink)] mb-2">Publishing Status</h3>
               <p>Active 24/7</p>
               <p>Automated compositor online.</p>
             </div>

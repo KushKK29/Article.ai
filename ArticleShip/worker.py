@@ -70,6 +70,8 @@ async def process_job(job, jobs_col):
         image_count = job.get("image_count", 5)
         image_spacing = job.get("image_spacing", 2)
         
+        # generate_seo_keywords / build_article_structure raise on failure
+        # (no more silent error dicts) — the except below marks the job failed.
         structure = await build_article_structure(
             topic,
             seo_data,
@@ -77,9 +79,6 @@ async def process_job(job, jobs_col):
             image_count=image_count,
             image_spacing=image_spacing
         )
-
-        if "error" in structure:
-            raise ValueError(f"Structure generation failed: {structure['error']}")
 
         # Save resolved image slots and count back to the job document
         jobs_col.update_one(

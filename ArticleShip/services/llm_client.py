@@ -19,9 +19,14 @@ Provider docs / model catalogs:
 """
 
 import os
+import re
+import json
+import logging
 from google import genai
 from google.genai import types
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 PROVIDER_CONFIG = {
     "gemini": {
@@ -40,8 +45,14 @@ PROVIDER_CONFIG = {
 
 
 class LLMResponse:
-    def __init__(self, text: str):
+    def __init__(self, text: str, finish_reason: str = ""):
         self.text = text
+        self.finish_reason = finish_reason
+
+    @property
+    def truncated(self) -> bool:
+        """True when the model stopped because it hit the output-token limit."""
+        return "MAX_TOKENS" in self.finish_reason.upper() or self.finish_reason == "length"
 
 
 class LLMClient:
@@ -87,7 +98,10 @@ class LLMClient:
                 contents=prompt,
                 config=types.GenerateContentConfig(**config_kwargs),
             )
-            return LLMResponse(response.text or "")
+            finish_reason = ""
+            if response.candidates:
+                finish_reason = str(response.candidates[0].finish_reason or "")
+            return LLMResponse(response.text or "", finish_reason)
 
         # OpenRouter / NVIDIA — both expose an OpenAI-compatible chat.completions API
         completion_kwargs = {}
@@ -102,4 +116,46 @@ class LLMClient:
             temperature=temperature,
             **completion_kwargs,
         )
-        return LLMResponse(completion.choices[0].message.content or "")
+        choice = completion.choices[0]
+        return LLMResponse(choice.message.content or "", choice.finish_reason or "")
+
+    def generate_json(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.5,
+        max_output_tokens: int = 4096,
+        retries: int = 1,
+    ) -> dict:
+        """
+        Structured JSON call with an explicit token limit, truncation detection,
+        and a retry with doubled headroom. Raises ValueError if every attempt
+        fails — callers must not silently continue with degraded output.
+        """
+        last_error: Exception | None = None
+        for attempt in range(retries + 1):
+            response = self.generate(
+                prompt,
+                model=model,
+                temperature=temperature,
+                max_output_tokens=max_output_tokens,
+                json_mode=True,
+            )
+            raw = re.sub(r"^```(?:json)?\s*", "", (response.text or "").strip())
+            raw = re.sub(r"\s*```$", "", raw).strip()
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as e:
+                last_error = e
+                if response.truncated:
+                    logger.warning(
+                        "JSON output truncated at %d tokens (finish_reason=%s); retrying with doubled limit.",
+                        max_output_tokens, response.finish_reason,
+                    )
+                    max_output_tokens *= 2
+                else:
+                    logger.warning("JSON parse failed (attempt %d): %s", attempt + 1, e)
+        raise ValueError(
+            f"LLM returned unparseable JSON after {retries + 1} attempt(s): {last_error}"
+        )

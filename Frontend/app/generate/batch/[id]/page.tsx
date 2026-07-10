@@ -122,7 +122,7 @@ function BatchStatusPageContent({ params }: RouteParams) {
       </div>
 
       {/* Batch Summary Card */}
-      <div className="glass-card rounded-3xl p-6 md:p-8 bg-white/80 space-y-6">
+      <div className="glass-card rounded-3xl p-6 md:p-8 bg-[var(--press-light)] space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight" id="batch-title">
@@ -164,7 +164,7 @@ function BatchStatusPageContent({ params }: RouteParams) {
       </div>
 
       {/* Jobs Details List */}
-      <div className="glass-card rounded-3xl bg-white/85 overflow-hidden shadow-sm border border-slate-150">
+      <div className="glass-card rounded-3xl bg-[var(--press-light)] overflow-hidden shadow-sm border border-slate-150">
         <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-md font-bold text-slate-800">Job Executions ({jobs.length})</h2>
         </div>

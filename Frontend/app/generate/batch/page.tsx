@@ -156,28 +156,28 @@ export default function BatchGeneratePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] px-4 py-8 text-[#0B132B] md:px-8 lg:px-12">
+    <main className="min-h-screen bg-[var(--paper)] px-4 py-8 text-[var(--ink)] md:px-8 lg:px-12">
       <title>Galley Tray | ArticleShip</title>
 
       <div className="mx-auto mb-8 max-w-[920px]">
-        <Link href="/generate" className="flex items-center gap-1 text-sm font-semibold text-[#1D4ED8] hover:underline">
+        <Link href="/generate" className="flex items-center gap-1 text-sm font-semibold text-[var(--accent)] hover:underline">
           &larr; Back to Dashboard
         </Link>
       </div>
 
       <div className="mx-auto max-w-[920px] space-y-6">
-        <section className="space-y-6 border-2 border-[#0B132B] bg-white p-6 shadow-[6px_6px_0px_rgba(11,19,43,0.12)] md:p-8">
+        <section className="space-y-6 border-2 border-[var(--ink)] bg-[var(--plate)] p-6 shadow-[6px_6px_0px_var(--press-dark)] md:p-8">
           <div className="space-y-3">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[#1D4ED8]">
+            <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[var(--accent)]">
               Submissions Queue
             </p>
             <h1
-              className={`${playfairDisplay.className} text-3xl font-normal tracking-tight text-[#0B132B] md:text-4xl`}
+              className={`${playfairDisplay.className} text-3xl font-normal tracking-tight text-[var(--ink)] md:text-4xl`}
               id="batch-page-title"
             >
               Galley Tray
             </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-[#4B5563]">
+            <p className="max-w-2xl text-sm leading-relaxed text-[var(--ink-muted)]">
               Queue multiple articles at once, assign a publication decision, and preview the exact run order before it goes to press.
             </p>
           </div>
@@ -190,7 +190,7 @@ export default function BatchGeneratePage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="batch-name" className="text-sm font-semibold text-[#0B132B]">
+              <label htmlFor="batch-name" className="text-sm font-semibold text-[var(--ink)]">
                 Batch Name (Optional)
               </label>
               <input
@@ -199,12 +199,12 @@ export default function BatchGeneratePage() {
                 placeholder="e.g. SEO Campaign Q3"
                 value={batchName}
                 onChange={(e) => setBatchName(e.target.value)}
-                className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20"
+                className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
               />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label htmlFor="batch-topics" className="text-sm font-semibold text-[#0B132B]">
+              <label htmlFor="batch-topics" className="text-sm font-semibold text-[var(--ink)]">
                 Topics (One per line)
               </label>
               <textarea
@@ -214,13 +214,13 @@ export default function BatchGeneratePage() {
                 value={topicsText}
                 onChange={(e) => setTopicsText(e.target.value)}
                 required
-                className="font-mono w-full border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-3 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20"
+                className="font-mono w-full border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="stagger-pattern" className="text-sm font-semibold text-[#0B132B]">
+                <label htmlFor="stagger-pattern" className="text-sm font-semibold text-[var(--ink)]">
                   Stagger Frequency / Interval
                 </label>
                 <select
@@ -232,7 +232,7 @@ export default function BatchGeneratePage() {
                       setCustomMinutes("");
                     }
                   }}
-                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20"
+                  className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
                 >
                   {STAGGER_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -243,7 +243,7 @@ export default function BatchGeneratePage() {
 
                 {staggerPattern === "custom" && (
                   <div className="mt-2 flex flex-col gap-1">
-                    <label htmlFor="custom-minutes" className="text-xs font-semibold text-[#4B5563]">
+                    <label htmlFor="custom-minutes" className="text-xs font-semibold text-[var(--ink-muted)]">
                       Custom Interval (Minutes)
                     </label>
                     <input
@@ -254,15 +254,15 @@ export default function BatchGeneratePage() {
                       value={customMinutes}
                       onChange={(e) => setCustomMinutes(e.target.value)}
                       required
-                      className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20"
+                      className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
                     />
                   </div>
                 )}
-                <span className="text-[11px] text-[#4B5563]">Interval between starting each article.</span>
+                <span className="text-[11px] text-[var(--ink-muted)]">Interval between starting each article.</span>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="schedule-time" className="text-sm font-semibold text-[#0B132B]">
+                <label htmlFor="schedule-time" className="text-sm font-semibold text-[var(--ink)]">
                   Start Date/Time (Optional)
                 </label>
                 <input
@@ -270,18 +270,18 @@ export default function BatchGeneratePage() {
                   type="datetime-local"
                   value={scheduledAt}
                   onChange={(e) => setScheduledAt(e.target.value)}
-                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20"
+                  className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--accent)_20%,transparent)]"
                 />
-                <span className="text-[11px] text-[#4B5563]">Leave blank to start executing the first job immediately.</span>
+                <span className="text-[11px] text-[var(--ink-muted)]">Leave blank to start executing the first job immediately.</span>
               </div>
             </div>
 
             {schedulePreview.length > 0 && (
-              <div className="border border-[#0B132B]/10 bg-[#F4F6F9] px-4 py-3 text-sm text-[#0B132B]">
-                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[#1D4ED8]">
+              <div className="border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink)]">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[var(--accent)]">
                   Schedule Preview
                 </p>
-                <p className="mt-2 leading-relaxed text-[#4B5563]">
+                <p className="mt-2 leading-relaxed text-[var(--ink-muted)]">
                   {schedulePreview.slice(0, PREVIEW_LIMIT).map((time, index) => (
                     <span key={`${time}-${index}`}>
                       Job {index + 1} — {time}
@@ -294,22 +294,22 @@ export default function BatchGeneratePage() {
             )}
 
             {!scheduledAt && topics.length > 0 && (
-              <div className="border border-dashed border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-3 text-sm text-[#4B5563]">
+              <div className="border border-dashed border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-muted)]">
                 Set a start time to preview the run order.
               </div>
             )}
 
             {/* Composition Controls */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[#0B132B]/10 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pt-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="word-count-select" className="text-sm font-semibold text-[#0B132B]">
+                <label htmlFor="word-count-select" className="text-sm font-semibold text-[var(--ink)]">
                   Target Length
                 </label>
                 <select
                   id="word-count-select"
                   value={wordCountTarget}
                   onChange={(e) => setWordCountTarget(Number(e.target.value))}
-                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                  className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
                 >
                   <option value={500}>500 words (Brief / Flat)</option>
                   <option value={1000}>1000 words (Standard Short)</option>
@@ -319,7 +319,7 @@ export default function BatchGeneratePage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="image-count-input" className="text-sm font-semibold text-[#0B132B]">
+                <label htmlFor="image-count-input" className="text-sm font-semibold text-[var(--ink)]">
                   Image Count (0-15)
                 </label>
                 <input
@@ -329,12 +329,12 @@ export default function BatchGeneratePage() {
                   max={15}
                   value={imageCount}
                   onChange={(e) => setImageCount(Math.min(15, Math.max(0, Number(e.target.value))))}
-                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                  className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
                 />
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="image-spacing-input" className="text-sm font-semibold text-[#0B132B]">
+                <label htmlFor="image-spacing-input" className="text-sm font-semibold text-[var(--ink)]">
                   Image Spacing
                 </label>
                 <input
@@ -343,16 +343,16 @@ export default function BatchGeneratePage() {
                   min={1}
                   value={imageSpacing}
                   onChange={(e) => setImageSpacing(Math.max(1, Number(e.target.value)))}
-                  className="border border-[#0B132B]/15 bg-[#F4F6F9] px-4 py-2.5 text-sm text-[#0B132B] outline-none transition focus:border-[#1D4ED8]"
+                  className="border border-[color-mix(in_srgb,var(--ink)_15%,transparent)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
                 />
-                <span className="text-[11px] text-[#4B5563]">
+                <span className="text-[11px] text-[var(--ink-muted)]">
                   Insert 1 image every {imageSpacing} headings.
                 </span>
               </div>
             </div>
 
-            <fieldset className="space-y-3 border-t border-[#0B132B]/10 pt-4">
-              <legend className="text-sm font-semibold text-[#0B132B]">Image Source</legend>
+            <fieldset className="space-y-3 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pt-4">
+              <legend className="text-sm font-semibold text-[var(--ink)]">Image Source</legend>
               <div className="grid gap-3 md:grid-cols-2">
                 {IMAGE_SOURCE_OPTIONS.map((option) => {
                   const checked = imageSource === option.value;
@@ -360,7 +360,7 @@ export default function BatchGeneratePage() {
                     <label
                       key={option.value}
                       className={`cursor-pointer border-2 px-4 py-3 transition ${
-                        checked ? "border-[#1D4ED8] bg-[#E8EEFF]" : "border-[#0B132B]/10 bg-white hover:border-[#1D4ED8]/50"
+                        checked ? "border-[var(--accent)] bg-[#E8EEFF]" : "border-[color-mix(in_srgb,var(--ink)_10%,transparent)] bg-[var(--plate)] hover:border-[color-mix(in_srgb,var(--accent)_50%,transparent)]"
                       }`}
                     >
                       <input
@@ -371,23 +371,23 @@ export default function BatchGeneratePage() {
                         onChange={() => setImageSource(option.value as "unsplash" | "google")}
                         className="sr-only"
                       />
-                      <span className="block text-sm font-semibold text-[#0B132B]">{option.label}</span>
-                      <span className="mt-1 block text-xs text-[#4B5563]">{option.description}</span>
+                      <span className="block text-sm font-semibold text-[var(--ink)]">{option.label}</span>
+                      <span className="mt-1 block text-xs text-[var(--ink-muted)]">{option.description}</span>
                     </label>
                   );
                 })}
               </div>
             </fieldset>
 
-            <div className="flex items-center gap-3 border-t border-[#0B132B]/10 pt-4">
+            <div className="flex items-center gap-3 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pt-4">
               <input
                 id="auto-publish-batch"
                 type="checkbox"
                 checked={autoPublish}
                 onChange={(e) => setAutoPublish(e.target.checked)}
-                className="h-4 w-4 border-[#0B132B]/15 text-[#1D4ED8] focus:ring-[#1D4ED8]"
+                className="h-4 w-4 border-[color-mix(in_srgb,var(--ink)_15%,transparent)] text-[var(--accent)] focus:ring-[var(--accent)]"
               />
-              <label htmlFor="auto-publish-batch" className="cursor-pointer select-none text-sm font-semibold text-[#0B132B]">
+              <label htmlFor="auto-publish-batch" className="cursor-pointer select-none text-sm font-semibold text-[var(--ink)]">
                 Send each successful article straight to publication
               </label>
             </div>
@@ -395,7 +395,7 @@ export default function BatchGeneratePage() {
             <button
               type="submit"
               disabled={loading || topics.length === 0}
-              className="inline-flex w-full items-center justify-center border-2 border-[#0B132B] bg-[#1D4ED8] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1E40AF] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center border-2 border-[var(--ink)] bg-[var(--accent)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#1E40AF] disabled:cursor-not-allowed disabled:opacity-50"
               id="batch-submit-btn"
             >
               {loading ? "Creating Batch Job..." : "Submit Batch Job"}
@@ -403,8 +403,8 @@ export default function BatchGeneratePage() {
           </form>
         </section>
 
-        <section className="border border-[#0B132B]/10 bg-[#F4F6F9] px-5 py-4 text-sm text-[#4B5563]">
-          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[#1D4ED8]">Run Notes</p>
+        <section className="border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] bg-[var(--paper)] px-5 py-4 text-sm text-[var(--ink-muted)]">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.24em] text-[var(--accent)]">Run Notes</p>
           <p className="mt-2 leading-relaxed">
             Unsplash and Google Images now map directly to the backend provider values. The schedule preview uses the same start-time plus stagger logic the job queue applies on submission.
           </p>

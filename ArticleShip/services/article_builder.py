@@ -60,8 +60,19 @@ def _core_search_terms(topic: str) -> str:
     return " ".join(filtered[:6])
 
 
+_BLOCKED_DOMAINS = [
+    "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
+    "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
+    "cnblogs.com", "36kr.com"
+]
+
+
 def _retrieve_article_context_sync(topic: str) -> str:
+    # Defined before any try block — the fallback paths below reference these
+    # even when the primary retrieval fails partway through (NameError guard).
     snippets: list[str] = []
+    seen_urls: set[str] = set()
+    blocked_domains = _BLOCKED_DOMAINS
     topic_lower = topic.lower()
     category = "general"
 
@@ -69,7 +80,6 @@ def _retrieve_article_context_sync(topic: str) -> str:
         ddgs = DDGS()
         search_subject = _normalize_search_subject(topic)
         core_terms = _core_search_terms(topic)
-        seen_urls: set[str] = set()
 
         # Step 1: Intent detection
         category = categorize_topic(topic)
@@ -164,11 +174,6 @@ def _retrieve_article_context_sync(topic: str) -> str:
             return 1
 
         temp_results = []
-        blocked_domains = [
-            "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
-            "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
-            "cnblogs.com", "36kr.com"
-        ]
 
         for query in queries:
             try:
@@ -270,11 +275,7 @@ def _retrieve_article_context_sync(topic: str) -> str:
                     url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
                     if not (body or title):
                         continue
-                    if any(domain in url.lower() for domain in [
-                        "baidu.com", "zhidao.baidu.com", "zhihu.com", "weibo.com",
-                        "bilibili.com", "douyin.com", "xiaohongshu.com", "csdn.net",
-                        "cnblogs.com", "36kr.com"
-                    ]):
+                    if any(domain in url.lower() for domain in blocked_domains):
                         continue
                     if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
                         continue
@@ -290,31 +291,35 @@ def _retrieve_article_context_sync(topic: str) -> str:
     if not snippets and ("ai" in topic_lower or "website" in topic_lower):
         try:
             ddgs_last_resort = DDGS()
-            for result in list(ddgs_last_resort.text(fallback_queries, max_results=6)):
-                body = str(result.get("body", "") or "").strip()
-                title = str(result.get("title", "") or "").strip()
-                url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
+            # ddgs.text() takes a single query string — iterate, never pass the list.
+            for query in fallback_queries:
+                for result in list(ddgs_last_resort.text(query, max_results=6)):
+                    body = str(result.get("body", "") or "").strip()
+                    title = str(result.get("title", "") or "").strip()
+                    url = str(result.get("href") or result.get("url") or result.get("link") or "").strip()
 
-                if url in seen_urls:
-                    continue
-                if any(domain in url.lower() for domain in blocked_domains):
-                    continue
-                if not (body or title):
-                    continue
-                if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
-                    continue
+                    if url in seen_urls:
+                        continue
+                    if any(domain in url.lower() for domain in blocked_domains):
+                        continue
+                    if not (body or title):
+                        continue
+                    if _contains_cjk(title) or _contains_cjk(body) or _contains_cjk(url):
+                        continue
 
-                seen_urls.add(url)
-                snippets.append(
-                    f"TITLE: {title}\n"
-                    f"URL: {url}\n"
-                    f"INSIGHT: {(body or title or topic)[:300]}"
-                )
+                    seen_urls.add(url)
+                    snippets.append(
+                        f"TITLE: {title}\n"
+                        f"URL: {url}\n"
+                        f"INSIGHT: {(body or title or topic)[:300]}"
+                    )
 
+                    if len(snippets) >= 3:
+                        break
                 if len(snippets) >= 3:
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Last-resort DDG fallback failed: %s", e)
 
     if not snippets:
         return f"No high-quality live context available for: {topic}"
@@ -661,9 +666,12 @@ WRITING RULES:
 
     Rules:
     - The anchor text must be the actual claim, not the institution name.
-    - The URL must be real, verifiable, and from a named institution.
-      Good URL sources: github.blog, research.google.com, orbit.media, statista.com
-    - If you cannot name a real, specific, verifiable URL for a stat: omit the stat entirely.
+    - The URL must appear verbatim in the SEARCH CONTEXT above (or the
+      INTERNAL LINKS list). URLs recalled from memory will be stripped
+      automatically after generation — do not use them.
+    - Every statistic (percentage, dollar amount, "N million") must come from
+      the SEARCH CONTEXT. If the context does not contain a number, omit the
+      stat entirely — ungrounded statistics are deleted after generation.
     - Never invent a URL. Never fabricate a number.
     - One inline link per cited claim — do not stack multiple citations on one phrase.
     - Do NOT use [SOURCE: ...] format anywhere in the output.
@@ -745,6 +753,83 @@ OUTPUT FORMAT — output in this exact order:
 Begin now. Output only the article, the ALT_TAG_AUDIT line, and the META_DESCRIPTION line — zero preamble, zero commentary."""
 
 
+# ── Post-generation grounding check ──────────────────────────────────────────
+# Statistic-shaped claims: percentages, dollar amounts, "N million/billion".
+# Deliberately excludes bare years and small counts to avoid false positives.
+_STAT_RE = re.compile(
+    r"\d[\d,]*(?:\.\d+)?\s*%"
+    r"|\$\s?\d[\d,]*(?:\.\d+)?"
+    r"|\b\d[\d,]*(?:\.\d+)?\s+(?:million|billion|trillion)\b",
+    re.IGNORECASE,
+)
+# Markdown links, excluding images (![alt](url)).
+_LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\((https?://[^)\s]+)\)")
+
+
+def _ground_generated_article(
+    article: str,
+    search_context: str,
+    related_articles: list[dict] | None = None,
+) -> tuple[str, list[str]]:
+    """
+    Enforce rule 22/27 mechanically: every citation URL must come from the
+    search context (or internal-link list), and every statistic must have its
+    number present somewhere in the retrieved context. Fabricated links are
+    unwrapped to plain text; ungrounded statistic sentences are removed.
+    Returns (cleaned_article, warnings).
+    """
+    warnings: list[str] = []
+
+    from urllib.parse import urlparse
+    allowed_urls = set(re.findall(r"https?://[^\s)\"'>]+", search_context))
+    for art in related_articles or []:
+        for value in art.values():
+            if isinstance(value, str) and value.startswith("http"):
+                allowed_urls.add(value)
+    allowed_domains = {urlparse(u).netloc.lower() for u in allowed_urls if u}
+
+    def _check_link(match: re.Match) -> str:
+        url = match.group(2)
+        if urlparse(url).netloc.lower() in allowed_domains:
+            return match.group(0)
+        warnings.append(f"Unwrapped uncited link (URL not in search context): {url}")
+        return match.group(1)
+
+    article = _LINK_RE.sub(_check_link, article)
+
+    # Every number that appears anywhere in the retrieved context, normalized.
+    context_numbers = {n.replace(",", "").rstrip(".") for n in re.findall(r"\d[\d,]*(?:\.\d+)?", search_context)}
+
+    def _stat_grounded(token: str) -> bool:
+        number = re.sub(r"[^\d.,]", "", token).replace(",", "").strip(".")
+        return number in context_numbers
+
+    out_lines: list[str] = []
+    in_fence = False
+    for line in article.split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            out_lines.append(line)
+            continue
+        # Only police prose — leave headings, code, and audit/meta lines alone.
+        if in_fence or line.lstrip().startswith("#") or line.startswith(("ALT_TAG_AUDIT:", "META_DESCRIPTION:")) or not line.strip():
+            out_lines.append(line)
+            continue
+
+        sentences = re.split(r"(?<=[.!?])\s+", line)
+        kept = []
+        for sentence in sentences:
+            stats = _STAT_RE.findall(sentence)
+            if stats and not all(_stat_grounded(s) for s in stats):
+                warnings.append(f"Removed ungrounded statistic: {sentence.strip()[:140]}")
+                continue
+            kept.append(sentence)
+        if kept:
+            out_lines.append(" ".join(kept))
+
+    return "\n".join(out_lines), warnings
+
+
 async def generate_article_content(
     topic: str,
     seo_data: dict,
@@ -796,6 +881,14 @@ async def generate_article_content(
 
         if not article:
             raise ValueError("Model returned an empty response.")
+
+        # Grounding enforcement: strip fabricated citation URLs and
+        # statistics that don't trace back to the retrieved search context.
+        article, grounding_warnings = _ground_generated_article(
+            article, search_context, related_articles
+        )
+        for warning in grounding_warnings:
+            logger.warning("GROUNDING: %s", warning)
 
         logger.info("Article generated - approx %d words", len(article.split()))
         return article

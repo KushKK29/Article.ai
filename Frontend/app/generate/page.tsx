@@ -79,9 +79,9 @@ function ToastBar({
     <div className="fixed right-4 top-4 z-50 flex w-[330px] flex-col gap-2">
       {toasts.map((toast) => {
         const tone: Record<ToastType, string> = {
-          success: "border-[#0B132B] bg-[#FEF08A] text-[#0B132B] shadow-[2px_2px_0px_rgba(11,19,43,1)]",
-          error: "border-[#0B132B] bg-rose-50 text-rose-800 shadow-[2px_2px_0px_rgba(11,19,43,1)]",
-          info: "border-[#0B132B] bg-sky-50 text-[#1E3A8A] shadow-[2px_2px_0px_rgba(11,19,43,1)]"
+          success: "border-[#0B132B] bg-[var(--highlight)] text-[#0B132B] shadow-[2px_2px_0px_var(--ink)]",
+          error: "border-[var(--ink)] bg-rose-50 text-rose-800 shadow-[2px_2px_0px_var(--ink)]",
+          info: "border-[var(--ink)] bg-sky-50 text-[var(--accent-deep)] shadow-[2px_2px_0px_var(--ink)]"
         };
         return (
           <div
@@ -92,7 +92,7 @@ function ToastBar({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-bold">{toast.title}</p>
-                {toast.description ? <p className="text-[10px] mt-1 normal-case font-sans text-[#4B5563]">{toast.description}</p> : null}
+                {toast.description ? <p className="text-[10px] mt-1 normal-case font-sans text-[var(--ink-muted)]">{toast.description}</p> : null}
               </div>
               <button
                 type="button"
@@ -654,14 +654,14 @@ function HomePageContent() {
   }, [loading, currentStep]);
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-12 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-12 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <ToastBar toasts={toasts} removeToast={removeToast} />
 
       <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-8 lg:grid-cols-[260px_1fr] items-start">
         {/* Sidebar Column */}
         <div className="space-y-6">
-          <aside className="bg-white border-2 border-[#0B132B] rounded-2xl p-5 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
-            <h2 className="mb-4 text-lg font-extrabold tracking-tight border-b border-[#0B132B]/10 pb-3 uppercase text-[#0B132B]">
+          <aside className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-5 shadow-[3px_3px_0px_var(--press-dark)]">
+            <h2 className="mb-4 text-lg font-extrabold tracking-tight border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-3 uppercase text-[var(--ink)]">
               Manuscript Desk
             </h2>
             <nav className="space-y-2 text-xs font-mono uppercase tracking-wider font-bold">
@@ -673,8 +673,8 @@ function HomePageContent() {
                 }}
                 className={`w-full rounded-none border-2 px-4 py-2.5 text-left transition ${
                   activeTab === "dashboard"
-                    ? "bg-[#0B132B] text-white border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
-                    : "bg-white border-transparent text-[#0B132B] hover:bg-[#0B132B]/5"
+                    ? "bg-[var(--ink)] text-[var(--paper)] border-[var(--ink)] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
+                    : "bg-[var(--plate)] border-transparent text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
                 }`}
               >
                 Desk Overview
@@ -687,21 +687,21 @@ function HomePageContent() {
                 }}
                 className={`w-full rounded-none border-2 px-4 py-2.5 text-left transition ${
                   activeTab === "articles"
-                    ? "bg-[#0B132B] text-white border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
-                    : "bg-white border-transparent text-[#0B132B] hover:bg-[#0B132B]/5"
+                    ? "bg-[var(--ink)] text-[var(--paper)] border-[var(--ink)] shadow-[2px_2px_0px_rgba(29,78,216,1)]"
+                    : "bg-[var(--plate)] border-transparent text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
                 }`}
               >
                 Manuscript Archive
               </button>
               <Link
                 href="/generate/batch"
-                className="block w-full rounded-none border-2 border-transparent px-4 py-2.5 text-left transition text-[#0B132B] hover:bg-[#0B132B]/5"
+                className="block w-full rounded-none border-2 border-transparent px-4 py-2.5 text-left transition text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
               >
                 Batch Queue
               </Link>
               <Link
                 href="/articles"
-                className="block w-full rounded-none border-2 border-[#0B132B] px-4 py-2.5 text-left transition text-[#1E3A8A] hover:bg-[#1D4ED8]/5 font-bold shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none"
+                className="block w-full rounded-none border-2 border-[var(--ink)] px-4 py-2.5 text-left transition text-[var(--accent-deep)] hover:bg-[color-mix(in_srgb,var(--accent)_5%,transparent)] font-bold shadow-[2px_2px_0px_var(--ink)] hover:shadow-none"
               >
                 Live Blog Archive &rarr;
               </Link>
@@ -709,9 +709,9 @@ function HomePageContent() {
           </aside>
 
           {activeTab === "articles" ? (
-            <aside className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:max-h-[calc(100vh-220px)] xl:overflow-hidden">
-              <div className="mb-4 flex items-center justify-between gap-3 border-b border-[#0B132B]/10 pb-3">
-                <h2 className="text-md font-extrabold uppercase text-[#0B132B]">Manuscripts</h2>
+            <aside className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] xl:max-h-[calc(100vh-220px)] xl:overflow-hidden">
+              <div className="mb-4 flex items-center justify-between gap-3 border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-3">
+                <h2 className="text-md font-extrabold uppercase text-[var(--ink)]">Manuscripts</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -719,7 +719,7 @@ function HomePageContent() {
                     setSelectedArticleId(null);
                     resetDraftComposer();
                   }}
-                  className="rounded-none border-2 border-[#0B132B] bg-white px-3 py-1 text-[10px] font-mono font-bold uppercase text-[#0B132B] shadow-[1.5px_1.5px_0px_rgba(11,19,43,1)] hover:shadow-none transition-all active:translate-x-0.5 active:translate-y-0.5"
+                  className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] px-3 py-1 text-[10px] font-mono font-bold uppercase text-[var(--ink)] shadow-[1.5px_1.5px_0px_var(--ink)] hover:shadow-none transition-all active:translate-x-0.5 active:translate-y-0.5"
                 >
                   New Draft
                 </button>
@@ -727,13 +727,13 @@ function HomePageContent() {
 
               {savedArticlesLoading ? (
                 <div className="space-y-3">
-                  <div className="h-16 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
-                  <div className="h-16 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
+                  <div className="h-16 w-full bg-[var(--paper)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] animate-pulse" />
+                  <div className="h-16 w-full bg-[var(--paper)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] animate-pulse" />
                 </div>
               ) : savedArticlesFetchFailed ? (
                 <p className="text-xs font-mono uppercase text-rose-700">Failed to load manuscript queue.</p>
               ) : savedArticles.length === 0 ? (
-                <p className="text-xs font-mono uppercase text-[#4B5563]">No manuscripts generated yet.</p>
+                <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">No manuscripts generated yet.</p>
               ) : (
                 <ul className="space-y-3 xl:max-h-[calc(100vh-320px)] xl:overflow-y-auto xl:pr-1">
                   {savedArticles.map((article) => {
@@ -741,8 +741,8 @@ function HomePageContent() {
                     return (
                       <li
                         key={article.id}
-                        className={`rounded-none border-2 bg-white p-3 transition ${
-                          isSelected ? "border-[#1D4ED8] shadow-[2.5px_2.5px_0px_rgba(29,78,216,1)]" : "border-[#0B132B] hover:shadow-[2px_2px_0px_rgba(11,19,43,1)]"
+                        className={`rounded-none border-2 bg-[var(--plate)] p-3 transition ${
+                          isSelected ? "border-[var(--accent)] shadow-[2.5px_2.5px_0px_rgba(29,78,216,1)]" : "border-[var(--ink)] hover:shadow-[2px_2px_0px_var(--ink)]"
                         }`}
                       >
                         <button
@@ -753,26 +753,26 @@ function HomePageContent() {
                           }}
                           className="w-full text-left font-mono"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#0B132B]/5 pb-1">
-                            <span className="font-bold text-[#0B132B] text-xs leading-tight truncate max-w-[130px]">{article.topic}</span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[color-mix(in_srgb,var(--ink)_5%,transparent)] pb-1">
+                            <span className="font-bold text-[var(--ink)] text-xs leading-tight truncate max-w-[130px]">{article.topic}</span>
                             <span
-                              className={`px-1.5 py-0.5 text-[9px] font-bold border border-[#0B132B]/20 uppercase tracking-wide ${
+                              className={`px-1.5 py-0.5 text-[9px] font-bold border border-[color-mix(in_srgb,var(--ink)_20%,transparent)] uppercase tracking-wide ${
                                 article.status === "published"
-                                  ? "bg-slate-100 text-[#0B132B]"
-                                  : "bg-[#FEF08A] text-[#0B132B]"
+                                  ? "bg-slate-100 text-[var(--ink)]"
+                                  : "bg-[var(--highlight)] text-[#0B132B]"
                               }`}
                             >
                               {article.status || "draft"}
                             </span>
                           </div>
-                          <p className="mt-1 text-[10px] text-[#4B5563]">{new Date(article.createdAt).toLocaleString()}</p>
+                          <p className="mt-1 text-[10px] text-[var(--ink-muted)]">{new Date(article.createdAt).toLocaleString()}</p>
                           {article.status === "published" ? (
-                            <p className="mt-1 text-[10px] font-bold text-[#1E3A8A]">VIEWS: {(article.viewCount ?? 0).toLocaleString()}</p>
+                            <p className="mt-1 text-[10px] font-bold text-[var(--accent-deep)]">VIEWS: {(article.viewCount ?? 0).toLocaleString()}</p>
                           ) : null}
                           {article.slug ? (
                             <a
                               href={`/blog/${article.slug}`}
-                              className="mt-2 inline-block text-[10px] font-bold text-[#1D4ED8] underline hover:text-[#1E3A8A]"
+                              className="mt-2 inline-block text-[10px] font-bold text-[var(--accent)] underline hover:text-[var(--accent-deep)]"
                               onClick={(event) => event.stopPropagation()}
                             >
                               Open Live Proof
@@ -814,21 +814,21 @@ function HomePageContent() {
             />
 
             {/* AI Image toggle */}
-            <div className="flex items-center gap-3 bg-white border-2 border-[#0B132B] rounded-2xl p-4 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
+            <div className="flex items-center gap-3 bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-4 shadow-[3px_3px_0px_var(--press-dark)]">
               <button
                 id="ai-image-toggle"
                 type="button"
                 role="switch"
                 aria-checked={aiGenerated}
                 onClick={() => setAiGenerated((v) => !v)}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] focus:ring-offset-2 ${
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 ${
                   aiGenerated
-                    ? "border-[#0B132B] bg-[#0B132B]"
+                    ? "border-[var(--ink)] bg-[var(--ink)]"
                     : "border-slate-300 bg-slate-200"
                 }`}
               >
                 <span
-                  className={`pointer-events-none inline-block h-4 w-4 translate-y-[1px] rounded-full bg-white shadow transition-transform duration-200 ${
+                  className={`pointer-events-none inline-block h-4 w-4 translate-y-[1px] rounded-full bg-[var(--plate)] shadow transition-transform duration-200 ${
                     aiGenerated ? "translate-x-5" : "translate-x-0.5"
                   }`}
                 />
@@ -838,10 +838,10 @@ function HomePageContent() {
                 className="flex cursor-pointer select-none flex-col font-mono"
                 onClick={() => setAiGenerated((v) => !v)}
               >
-                <span className="text-xs font-bold text-[#0B132B]">
+                <span className="text-xs font-bold text-[var(--ink)]">
                   {aiGenerated ? "✨ AI-generated art (Creative)" : "📷 Real photos (Unsplash)"}
                 </span>
-                <span className="text-[10px] text-[#4B5563] font-sans">
+                <span className="text-[10px] text-[var(--ink-muted)] font-sans">
                   {aiGenerated
                     ? "Pollinations.ai — dynamic custom art sheets"
                     : "Unsplash — classic photography plates"}
@@ -854,7 +854,7 @@ function HomePageContent() {
                 type="button"
                 onClick={saveArticle}
                 disabled={isPersistingDraft}
-                className="rounded-none bg-[#0B132B] text-white px-4 py-2 border-2 border-[#0B132B] shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
+                className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2 border-2 border-[var(--ink)] shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
               >
                 {isPersistingDraft ? "Saving..." : "Save Manuscript"}
               </button>
@@ -862,27 +862,27 @@ function HomePageContent() {
                 type="button"
                 onClick={generate}
                 disabled={loading || !topic.trim()}
-                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
+                className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] text-[var(--ink)] px-4 py-2 shadow-[2px_2px_0px_var(--ink)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-60"
               >
                 Re-typeset Galley
               </button>
               <button
                 type="button"
                 onClick={downloadMarkdown}
-                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
+                className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] text-[var(--ink)] px-4 py-2 shadow-[2px_2px_0px_var(--ink)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
               >
                 Export MD
               </button>
               <button
                 type="button"
                 onClick={downloadPdf}
-                className="rounded-none border-2 border-[#0B132B] bg-white text-[#0B132B] px-4 py-2 shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
+                className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] text-[var(--ink)] px-4 py-2 shadow-[2px_2px_0px_var(--ink)] hover:shadow-none active:translate-x-0.5 active:translate-y-0.5 transition-all"
               >
                 Export PDF
               </button>
             </div>
 
-            <p className="text-xs font-mono uppercase text-[#4B5563]">
+            <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">
               {isPersistingDraft
                 ? "Writing manuscript to disk..."
                 : hasUnsavedChanges
@@ -893,34 +893,34 @@ function HomePageContent() {
             </p>
 
             {/* Upcoming Scheduled Articles list */}
-            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]" id="upcoming-jobs-container">
-              <h3 className="font-serif text-lg font-extrabold text-[#0B132B] mb-4 flex items-center justify-between border-b border-[#0B132B]/10 pb-3">
+            <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)]" id="upcoming-jobs-container">
+              <h3 className="font-serif text-lg font-extrabold text-[var(--ink)] mb-4 flex items-center justify-between border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-3">
                 <span>📅 Upcoming Stagger Runs</span>
                 {scheduledJobs.length > 0 && (
-                  <span className="text-xs font-mono bg-[#0B132B] text-white px-2 py-0.5 font-bold">
+                  <span className="text-xs font-mono bg-[var(--ink)] text-[var(--paper)] px-2 py-0.5 font-bold">
                     {scheduledJobs.length} RUNS
                   </span>
                 )}
               </h3>
               
               {scheduledJobs.length === 0 ? (
-                <p className="text-xs font-mono uppercase text-[#4B5563] py-4 text-center">
+                <p className="text-xs font-mono uppercase text-[var(--ink-muted)] py-4 text-center">
                   No manuscript runs scheduled in the galley press.
                 </p>
               ) : (
-                <div className="divide-y divide-[#0B132B]/10 space-y-3">
+                <div className="divide-y divide-[color-mix(in_srgb,var(--ink)_10%,transparent)] space-y-3">
                   {scheduledJobs.map((job) => (
                     <div key={job._id} className="pt-3 first:pt-0 flex items-center justify-between gap-4 font-mono text-xs" id={`upcoming-job-${job._id}`}>
                       <div className="space-y-1">
-                        <h4 className="font-serif text-sm font-extrabold text-[#0B132B] leading-tight">
+                        <h4 className="font-serif text-sm font-extrabold text-[var(--ink)] leading-tight">
                           {job.topic}
                         </h4>
-                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#4B5563]">
-                          <span className="bg-[#F4F6F9] border border-[#0B132B]/10 px-2 py-0.5 font-medium">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-[var(--ink-muted)]">
+                          <span className="bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] px-2 py-0.5 font-medium">
                             RUN: {new Date(job.scheduled_at).toLocaleString()}
                           </span>
                           {job.auto_publish && (
-                            <span className="bg-[#FEF08A] border border-[#0B132B]/20 text-[#0B132B] px-2 py-0.5 font-bold">
+                            <span className="bg-[var(--highlight)] border border-[#0B132B]/20 text-[#0B132B] px-2 py-0.5 font-bold">
                               🚀 AUTO-PUBLISH
                             </span>
                           )}
@@ -941,8 +941,8 @@ function HomePageContent() {
 
             {loading ? (
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <div className="h-48 w-full bg-white border-2 border-[#0B132B]/10 rounded-2xl animate-pulse" />
-                <div className="h-48 w-full bg-white border-2 border-[#0B132B]/10 rounded-2xl animate-pulse" />
+                <div className="h-48 w-full bg-[var(--plate)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] rounded-2xl animate-pulse" />
+                <div className="h-48 w-full bg-[var(--plate)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] rounded-2xl animate-pulse" />
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-8 xl:grid-cols-2">
@@ -957,84 +957,84 @@ function HomePageContent() {
                   <ImageGallery images={images} onRegenerate={generate} loading={loading} />
                 </div>
 
-                <section className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:col-span-2">
-                  <h2 className="mb-4 font-serif text-lg font-extrabold text-[#0B132B] border-b border-[#0B132B]/10 pb-2">
+                <section className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] xl:col-span-2">
+                  <h2 className="mb-4 font-serif text-lg font-extrabold text-[var(--ink)] border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">
                     Galley Proof HTML Layout
                   </h2>
                   {!content ? (
-                    <p className="text-xs font-mono uppercase text-[#4B5563]">Generate manuscript to review inline formatting.</p>
+                    <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">Generate manuscript to review inline formatting.</p>
                   ) : (
                     <article
-                      className="article-html max-h-[700px] overflow-auto rounded-none border-2 border-[#0B132B] bg-[#F4F6F9] p-6 font-sans"
+                      className="article-html max-h-[700px] overflow-auto rounded-none border-2 border-[var(--ink)] bg-[var(--paper)] p-6 font-sans"
                       dangerouslySetInnerHTML={{ __html: content }}
                     />
                   )}
                 </section>
 
-                <section className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] xl:col-span-2">
-                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[#0B132B]/10 pb-3">
+                <section className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] xl:col-span-2">
+                  <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-3">
                     <div>
-                      <h2 className="font-serif text-lg font-extrabold text-[#0B132B]">Circulation & Readership</h2>
-                      <p className="text-xs text-[#4B5563] font-mono uppercase">Track proof metrics and query performance.</p>
+                      <h2 className="font-serif text-lg font-extrabold text-[var(--ink)]">Circulation & Readership</h2>
+                      <p className="text-xs text-[var(--ink-muted)] font-mono uppercase">Track proof metrics and query performance.</p>
                     </div>
-                    <div className="text-right font-mono text-xs font-bold text-[#0B132B]">
+                    <div className="text-right font-mono text-xs font-bold text-[var(--ink)]">
                       <p>COMPLETED GALLEYS: {publishedArticles.length}</p>
                     </div>
                   </div>
 
                   <div className="mb-6 flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#4B5563]">Top Keywords:</span>
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink-muted)]">Top Keywords:</span>
                     {analyticsFunnel.topKeywords.length > 0 ? analyticsFunnel.topKeywords.map(([kw, views]) => (
-                      <span key={kw} className="inline-flex items-center gap-1.5 rounded-none border border-[#0B132B] bg-[#F4F6F9] px-2.5 py-1 font-mono text-[10px]">
-                        <span className="font-bold text-[#0B132B]">{kw}</span>
-                        <span className="font-bold text-[#1D4ED8] bg-white border border-[#0B132B]/10 px-1.5">{views} views</span>
+                      <span key={kw} className="inline-flex items-center gap-1.5 rounded-none border border-[var(--ink)] bg-[var(--paper)] px-2.5 py-1 font-mono text-[10px]">
+                        <span className="font-bold text-[var(--ink)]">{kw}</span>
+                        <span className="font-bold text-[var(--accent)] bg-[var(--plate)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] px-1.5">{views} views</span>
                       </span>
-                    )) : <span className="text-[10px] font-mono text-[#4B5563]">No search metrics yet</span>}
+                    )) : <span className="text-[10px] font-mono text-[var(--ink-muted)]">No search metrics yet</span>}
                   </div>
 
                   <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
-                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
-                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Manuscript Drafts</p>
-                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.totalDrafts}</p>
+                    <div className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Manuscript Drafts</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[var(--ink)]">{analyticsFunnel.totalDrafts}</p>
                     </div>
-                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
-                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Completed Galleys</p>
-                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#1E3A8A]">{publishedArticles.length}</p>
+                    <div className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Completed Galleys</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[var(--accent-deep)]">{publishedArticles.length}</p>
                     </div>
-                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
-                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Galley Run Yield</p>
-                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.publishedRatio}%</p>
+                    <div className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Galley Run Yield</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[var(--ink)]">{analyticsFunnel.publishedRatio}%</p>
                     </div>
-                    <div className="rounded-none border-2 border-[#0B132B] bg-white p-4">
-                      <p className="text-[9px] uppercase tracking-wider text-[#4B5563]">Avg Composition Run</p>
-                      <p className="mt-1 font-serif text-3xl font-extrabold text-[#0B132B]">{analyticsFunnel.timeCount > 0 ? analyticsFunnel.avgPublishTimeText : "-"}</p>
+                    <div className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-4">
+                      <p className="text-[9px] uppercase tracking-wider text-[var(--ink-muted)]">Avg Composition Run</p>
+                      <p className="mt-1 font-serif text-3xl font-extrabold text-[var(--ink)]">{analyticsFunnel.timeCount > 0 ? analyticsFunnel.avgPublishTimeText : "-"}</p>
                     </div>
                   </div>
 
                   {savedArticlesLoading ? (
                     <div className="grid gap-3 md:grid-cols-2">
-                      <div className="h-24 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
-                      <div className="h-24 w-full bg-[#F4F6F9] border-2 border-[#0B132B]/10 animate-pulse" />
+                      <div className="h-24 w-full bg-[var(--paper)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] animate-pulse" />
+                      <div className="h-24 w-full bg-[var(--paper)] border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] animate-pulse" />
                     </div>
                   ) : savedArticlesFetchFailed ? (
                     <p className="text-xs font-mono uppercase text-rose-700">Metrics unavailable.</p>
                   ) : publishedArticles.length === 0 ? (
-                    <p className="text-xs font-mono uppercase text-[#4B5563]">No published manuscripts in this press run.</p>
+                    <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">No published manuscripts in this press run.</p>
                   ) : (
                     <div className="grid gap-4 md:grid-cols-2">
                       {publishedArticles
                         .slice()
                         .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0))
                         .map((article) => (
-                          <article key={article.id} className="rounded-none border-2 border-[#0B132B] bg-white p-4">
+                          <article key={article.id} className="rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="font-mono">
-                                <h3 className="font-serif text-sm font-extrabold text-[#0B132B] leading-tight">{article.topic}</h3>
-                                <p className="mt-1 text-[10px] text-[#4B5563]">
+                                <h3 className="font-serif text-sm font-extrabold text-[var(--ink)] leading-tight">{article.topic}</h3>
+                                <p className="mt-1 text-[10px] text-[var(--ink-muted)]">
                                   PUBLISHED: {article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : "-"}
                                 </p>
                                 <div className="mt-3 flex items-center gap-3">
-                                  <p className="text-xs font-bold text-[#0B132B]">
+                                  <p className="text-xs font-bold text-[var(--ink)]">
                                     {(article.viewCount ?? 0).toLocaleString()} VIEWS
                                   </p>
                                   <Sparkline views={article.viewCount ?? 0} />
@@ -1056,7 +1056,7 @@ function HomePageContent() {
                             {article.slug ? (
                               <a
                                 href={`/blog/${article.slug}`}
-                                className="mt-3 inline-block text-[10px] font-bold text-[#1D4ED8] underline hover:text-[#1E3A8A] font-mono"
+                                className="mt-3 inline-block text-[10px] font-bold text-[var(--accent)] underline hover:text-[var(--accent-deep)] font-mono"
                               >
                                 Open Publication
                               </a>

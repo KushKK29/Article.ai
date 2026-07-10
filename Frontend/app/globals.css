@@ -4,6 +4,20 @@
 
 :root {
   color-scheme: light;
+  /* Litho Press palette */
+  --paper: #f4f6f9;
+  --plate: #ffffff;
+  --ink: #0b132b;
+  --ink-muted: #4b5563;
+  --accent: #1d4ed8;
+  --accent-deep: #1e3a8a;
+  --highlight: #fef08a;
+  --press-light: rgba(255, 255, 255, 0.65);
+  --press-dark: rgba(11, 19, 43, 0.18);
+  /* Shared motion tokens */
+  --ease-press: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-quick: 200ms;
+  --dur-reveal: 600ms;
   --surface: #ffffff;
   --surface-soft: #f8fafc;
   --surface-elevated: #f1f5f9;
@@ -21,6 +35,15 @@
 
 [data-theme='dark'] {
   color-scheme: dark;
+  --paper: #10151f;
+  --plate: #171e2c;
+  --ink: #e8eaf2;
+  --ink-muted: #9aa3b5;
+  --accent: #7c9af5;
+  --accent-deep: #a5b8f8;
+  --highlight: #fde047;
+  --press-light: rgba(255, 255, 255, 0.06);
+  --press-dark: rgba(0, 0, 0, 0.5);
   --surface: #0f172a;
   --surface-soft: #1e293b;
   --surface-elevated: #334155;
@@ -34,6 +57,15 @@
 
 [data-theme='midnight'] {
   color-scheme: dark;
+  --paper: #05070d;
+  --plate: #0b101b;
+  --ink: #dfe3ee;
+  --ink-muted: #8e97ab;
+  --accent: #8ea4f8;
+  --accent-deep: #b3c2fa;
+  --highlight: #fde047;
+  --press-light: rgba(255, 255, 255, 0.05);
+  --press-dark: rgba(0, 0, 0, 0.6);
   --surface: #020617;
   --surface-soft: #0f172a;
   --surface-elevated: #1e293b;
@@ -47,6 +79,13 @@
 
 [data-theme='sepia'] {
   color-scheme: light;
+  --paper: #f6efdf;
+  --plate: #fdf9ec;
+  --ink: #2f2a1f;
+  --ink-muted: #6b5f46;
+  --accent: #8a6d1d;
+  --accent-deep: #6f5817;
+  --highlight: #f7e09a;
   --surface: #fdf6e3;
   --surface-soft: #eee8d5;
   --surface-elevated: #ddd6c1;
@@ -93,7 +132,7 @@ h1,
 h2,
 h3,
 h4 {
-  font-family: var(--font-space), sans-serif;
+  font-family: var(--font-fraunces), Georgia, serif;
 }
 
 .glass-card {
@@ -290,4 +329,162 @@ h2[id],
 h3[id],
 h4[id] {
   scroll-margin-top: 110px !important;
+}
+
+/* ── Litho Press motion & texture ─────────────────────────── */
+
+/* Reveal on scroll: fade + slight upward settle, like ink taking to paper */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--dur-reveal) var(--ease-press),
+    transform var(--dur-reveal) var(--ease-press);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-inked {
+  opacity: 1;
+  transform: none;
+}
+
+/* Ink frame: an accent border that draws itself in on hover, like a press mark */
+.ink-frame {
+  position: relative;
+}
+
+.ink-frame::before,
+.ink-frame::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  pointer-events: none;
+}
+
+.ink-frame::before {
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: scaleX(0);
+  transition: transform 320ms var(--ease-press);
+}
+
+.ink-frame::after {
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  transform: scaleY(0);
+  transition: transform 320ms var(--ease-press) 90ms;
+}
+
+.ink-frame:hover::before,
+.ink-frame:focus-within::before {
+  transform: scaleX(1);
+}
+
+.ink-frame:hover::after,
+.ink-frame:focus-within::after {
+  transform: scaleY(1);
+}
+
+/* Press lift: card rises off the plate; pair with a hard offset shadow */
+.press-lift {
+  transition: transform var(--dur-quick) var(--ease-press), box-shadow var(--dur-quick) var(--ease-press);
+}
+
+.press-lift:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--press-dark);
+}
+
+/* Letterpress: subtle debossed heading, like type pressed into stock */
+.letterpress {
+  text-shadow: 0 1px 0 var(--press-light), 0 -1px 0 var(--press-dark);
+}
+
+/* Stamp: slightly rotated bordered badge, like a hand stamp */
+.stamp {
+  display: inline-block;
+  border: 1px solid currentColor;
+  transform: rotate(-1.5deg);
+}
+
+/* Paper grain overlay (static by design; animated grain reads as noise) */
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Slow drifting light across the hero, GPU-only (transform) */
+.hero-drift {
+  position: absolute;
+  inset: -20%;
+  pointer-events: none;
+  background:
+    radial-gradient(600px circle at 28% 22%, rgb(29 78 216 / 0.09), transparent 60%),
+    radial-gradient(520px circle at 78% 62%, rgb(254 240 138 / 0.12), transparent 55%);
+  animation: hero-drift 26s var(--ease-press) infinite alternate;
+}
+
+@keyframes hero-drift {
+  from {
+    transform: translate3d(-3%, -2%, 0);
+  }
+
+  to {
+    transform: translate3d(3%, 2%, 0);
+  }
+}
+
+/* Connector rule that draws itself in when its Reveal parent inks in */
+.rule-draw {
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 900ms var(--ease-press) 200ms;
+}
+
+.is-inked .rule-draw {
+  transform: scaleX(1);
+}
+
+/* Route enter transition (applied by app/template.tsx on every navigation) */
+.page-enter {
+  animation: page-enter 320ms var(--ease-press);
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal,
+  .rule-draw,
+  .is-inked .rule-draw {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .hero-drift,
+  .page-enter,
+  .skeleton::after {
+    animation: none !important;
+  }
+
+  .press-lift:hover {
+    transform: none;
+  }
 }

@@ -19,7 +19,7 @@ export default function StructureViewer({ structure }: StructureViewerProps) {
           {structure.sections.map((section) => (
             <details
               key={section.h2}
-              className="rounded-lg border border-slate-200 bg-white p-3"
+              className="rounded-lg border border-slate-200 bg-[var(--plate)] p-3"
               open
             >
               <summary className="cursor-pointer text-sm font-semibold text-slate-800">H2: {section.h2}</summary>

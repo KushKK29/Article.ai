@@ -336,8 +336,8 @@ export default function SavedArticleWorkbench({
     await onDelete(article.id);
   };
 
-  const toolbarButtonClass = "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
-  const toolbarIconButtonClass = "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
+  const toolbarButtonClass = "rounded-lg border border-slate-300 bg-[var(--plate)] px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
+  const toolbarIconButtonClass = "inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-[var(--plate)] px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100";
   const toolbarGroupClass = "flex flex-wrap items-center gap-2";
 
   useLayoutEffect(() => {
@@ -392,7 +392,7 @@ export default function SavedArticleWorkbench({
     <section className={sectionClass} style={focusMode ? {} : { height: "calc(100vh - 100px)" }}>
 
       {/* ── Top header ── */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-[var(--plate)] px-5 py-3">
         <div>
           <h3 className="text-base font-semibold text-slatebrand">{headerLabel}</h3>
           <p className="text-xs text-slate-500">Edit content, headings, links, colors, and images.</p>
@@ -401,7 +401,7 @@ export default function SavedArticleWorkbench({
           <button
             type="button"
             onClick={() => setFocusMode((f) => !f)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+            className="rounded-lg border border-slate-300 bg-[var(--plate)] px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
           >
             {focusMode ? "✕ Exit Focus" : "⛶ Focus Mode"}
           </button>
@@ -412,7 +412,7 @@ export default function SavedArticleWorkbench({
       </div>
 
       {/* ── Sticky Toolbar ── */}
-      <div className="shrink-0 overflow-x-auto border-b border-slate-200 bg-white/95 px-4 py-2 backdrop-blur-sm">
+      <div className="shrink-0 overflow-x-auto border-b border-slate-200 bg-[var(--press-light)] px-4 py-2 backdrop-blur-sm">
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Undo / Redo */}
           <button type="button" onClick={() => applyCommand("undo")} className={toolbarIconButtonClass} title="Undo">
@@ -426,7 +426,7 @@ export default function SavedArticleWorkbench({
           <select
             defaultValue="p"
             onChange={(e) => { applyCommand("formatBlock", e.target.value); e.currentTarget.value = "p"; }}
-            className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+            className="rounded-lg border border-slate-300 bg-[var(--plate)] px-2 py-1.5 text-xs font-semibold text-slate-700"
           >
             <option value="p">Paragraph</option>
             <option value="h2">Heading 2</option>
@@ -463,16 +463,16 @@ export default function SavedArticleWorkbench({
           </button>
           <div className="mx-1 h-5 w-px bg-slate-200" />
           {/* Color + Size */}
-          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700" title="Text color">
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-300 bg-[var(--plate)] px-2 py-1.5 text-xs font-semibold text-slate-700" title="Text color">
             Color
             <input type="color" value={fontColor} onChange={(e) => { setFontColor(e.target.value); document.execCommand("styleWithCSS", false, "true"); applyCommand("foreColor", e.target.value); }} className="h-6 w-7 rounded border-0 bg-transparent p-0" />
           </label>
-          <select value={fontSize} onChange={(e) => { setFontSize(e.target.value); wrapSelectionWithStyle({ fontSize: `${e.target.value}px` }); }} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700">
+          <select value={fontSize} onChange={(e) => { setFontSize(e.target.value); wrapSelectionWithStyle({ fontSize: `${e.target.value}px` }); }} className="rounded-lg border border-slate-300 bg-[var(--plate)] px-2 py-1.5 text-xs font-semibold text-slate-700">
             {["14", "16", "18", "20", "24", "28"].map(s => <option key={s} value={s}>{s}px</option>)}
           </select>
           <div className="mx-1 h-5 w-px bg-slate-200" />
           {/* Upload image */}
-          <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+          <label className="cursor-pointer rounded-lg border border-slate-300 bg-[var(--plate)] px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
             Upload Image
             <input type="file" accept="image/*" onChange={handleInsertImage} className="hidden" />
           </label>
@@ -483,12 +483,12 @@ export default function SavedArticleWorkbench({
       </div>
 
       {/* ── Topic input ── */}
-      <div className="shrink-0 border-b border-slate-100 bg-white px-5 py-2">
+      <div className="shrink-0 border-b border-slate-100 bg-[var(--plate)] px-5 py-2">
         <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Topic</label>
         <input
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
+          className="mt-1 w-full rounded-lg border border-slate-200 bg-[var(--plate)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-200"
         />
       </div>
 
@@ -537,9 +537,9 @@ export default function SavedArticleWorkbench({
               className="pointer-events-none absolute z-30 border-2 border-sky-500 bg-sky-500/5"
               style={{ top: selectionBox.top, left: selectionBox.left, width: selectionBox.width, height: selectionBox.height }}
             >
-              <div className="absolute -top-2 -left-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-white" />
-              <div className="absolute -top-2 -right-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-white" />
-              <div className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-white" />
+              <div className="absolute -top-2 -left-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-[var(--plate)]" />
+              <div className="absolute -top-2 -right-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-[var(--plate)]" />
+              <div className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full border-2 border-sky-500 bg-[var(--plate)]" />
               <button
                 type="button"
                 onPointerDown={startImageResize}
@@ -552,7 +552,7 @@ export default function SavedArticleWorkbench({
           ) : null}
           {/* Image inspector modal — disabled
           {selectedImage && imageInspectorPosition ? (
-            <div className="absolute z-40 w-[280px] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl" style={{ top: imageInspectorPosition.top, left: imageInspectorPosition.left }}>
+            <div className="absolute z-40 w-[280px] rounded-2xl border border-slate-200 bg-[var(--plate)] p-4 shadow-2xl" style={{ top: imageInspectorPosition.top, left: imageInspectorPosition.left }}>
               <div className="flex items-start justify-between gap-3">
                 <p className="text-xs font-semibold text-slatebrand">Image Inspector</p>
                 <button type="button" onClick={() => { setSelectedImage(null); setImageInspectorPosition(null); }} className="rounded border px-2 py-1 text-xs font-semibold">Close</button>
@@ -587,7 +587,7 @@ export default function SavedArticleWorkbench({
       </div>
 
       {/* ── Sticky Bottom Action Bar ── */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-[var(--plate)] px-5 py-3">
         <div className="flex items-center gap-4 text-xs text-slate-500">
           <span><span className="font-semibold text-slate-800">{wordCount.toLocaleString()}</span> words</span>
           <span><span className="font-semibold text-slate-800">{readingTime} min</span> read</span>
@@ -623,7 +623,7 @@ export default function SavedArticleWorkbench({
       {/* ── Diff Modal ── */}
       {showDiffModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-[var(--plate)] shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Publish Draft: Confirm Changes</h3>
@@ -638,13 +638,13 @@ export default function SavedArticleWorkbench({
                 <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">Previous Version</h4>
                 <div className="article-html opacity-75" dangerouslySetInnerHTML={{ __html: originalHtml }} />
               </div>
-              <div className="w-1/2 overflow-y-auto bg-white p-6">
+              <div className="w-1/2 overflow-y-auto bg-[var(--plate)] p-6">
                 <h4 className="mb-4 text-sm font-bold uppercase tracking-wider text-emerald-600">Current Draft</h4>
                 <div className="article-html" dangerouslySetInnerHTML={{ __html: currentHtml }} />
               </div>
             </div>
             <div className="flex justify-end gap-3 border-t border-slate-200 bg-slate-50 p-5">
-              <button type="button" onClick={() => setShowDiffModal(false)} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white">
+              <button type="button" onClick={() => setShowDiffModal(false)} className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-[var(--plate)]">
                 Cancel
               </button>
               <button

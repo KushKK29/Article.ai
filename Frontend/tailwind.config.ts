@@ -7,6 +7,11 @@ const config: Config = {
     "./lib/**/*.{js,ts,jsx,tsx,mdx}"
   ],
   theme: {
+    fontFamily: {
+      serif: ["var(--font-fraunces)", "Georgia", "serif"],
+      sans: ["var(--font-manrope)", "ui-sans-serif", "system-ui", "sans-serif"],
+      mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"]
+    },
     extend: {
       colors: {
         ink: "#111827",

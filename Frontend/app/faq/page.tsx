@@ -43,14 +43,14 @@ export default function FAQPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-16 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <div className="mx-auto max-w-[800px] space-y-12">
         
         {/* Header Block */}
-        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Inquiry Desk</p>
+        <header className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--accent)]">Inquiry Desk</p>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Frequently Asked Questions</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">
             Find quick details about manuscript composition, billing, and system specifications.
           </p>
         </header>
@@ -60,13 +60,13 @@ export default function FAQPage() {
           {faqs.map((faq, idx) => (
             <div 
               key={idx} 
-              className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] space-y-3"
+              className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] space-y-3"
             >
-              <h3 className="text-lg font-extrabold font-serif flex gap-2 items-start text-[#0B132B]">
-                <span className="font-mono text-xs text-[#1D4ED8] bg-[#FEF08A] px-1.5 py-0.5 border border-[#0B132B]/10">Q</span>
+              <h3 className="text-lg font-extrabold font-serif flex gap-2 items-start text-[var(--ink)]">
+                <span className="font-mono text-xs text-[#1D4ED8] bg-[var(--highlight)] px-1.5 py-0.5 border border-[#0B132B]/10">Q</span>
                 <span>{faq.q}</span>
               </h3>
-              <p className="font-serif text-sm text-[#4B5563] leading-relaxed pl-8">
+              <p className="font-serif text-sm text-[var(--ink-muted)] leading-relaxed pl-8">
                 {faq.a}
               </p>
             </div>
@@ -74,14 +74,14 @@ export default function FAQPage() {
         </div>
 
         {/* Help Banner */}
-        <div className="bg-white border-2 border-dashed border-[#0B132B]/30 p-8 text-center rounded-2xl space-y-4">
+        <div className="bg-[var(--plate)] border-2 border-dashed border-[color-mix(in_srgb,var(--ink)_30%,transparent)] p-8 text-center rounded-2xl space-y-4">
           <h3 className="text-lg font-extrabold">Have a question not listed in the ledger?</h3>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
             Our support desk is standing by to assist with custom requests.
           </p>
           <Link 
             href="/contact" 
-            className="inline-flex items-center justify-center rounded-none bg-[#0B132B] text-white px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
+            className="inline-flex items-center justify-center rounded-none bg-[var(--ink)] text-[var(--paper)] px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
           >
             Submit Support Inquiry
           </Link>

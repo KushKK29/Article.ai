@@ -197,20 +197,41 @@ function extractImageSourcesFromHtml(html: string) {
   return sources;
 }
 
-async function getArticle(slug: string): Promise<PublishedArticle | null> {
-  const response = await fetch(getBackendUrl(`/api/v1/articles?slug=${encodeURIComponent(slug)}`), {
-    cache: "no-store"
-  });
+async function fetchBackend(path: string, retries = 2): Promise<Response> {
+  // Retry on 5xx/network errors — the Render backend answers 5xx while
+  // cold-starting, which must not be mistaken for "article doesn't exist".
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(getBackendUrl(path), { cache: "no-store" });
+      if (response.status < 500) return response;
+      lastError = new Error(`Backend responded ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+  }
+  throw lastError;
+}
 
+async function getArticle(slug: string): Promise<PublishedArticle | null> {
+  // Only a definitive backend answer may produce null (→ 404 page).
+  // Backend-unreachable throws instead, so readers and crawlers get an
+  // error page rather than a false (and cacheable) "not found".
+  const response = await fetchBackend(`/api/v1/articles?slug=${encodeURIComponent(slug)}`);
   if (!response.ok) return null;
   const data = await response.json();
   return data.article ?? null;
 }
 
 async function getRecentArticles(currentSlug: string) {
-  const response = await fetch(getBackendUrl("/api/v1/articles?status=published"), {
-    cache: "no-store"
-  });
+  // Sidebar content — soft-fail to empty rather than breaking the page.
+  let response: Response;
+  try {
+    response = await fetchBackend("/api/v1/articles?status=published", 0);
+  } catch {
+    return [] as PublishedArticle[];
+  }
 
   if (!response.ok) return [] as PublishedArticle[];
 
@@ -318,7 +339,7 @@ export default async function BlogArticlePage({
   };
 
   return (
-    <section className="scroll-smooth bg-[#F4F6F9] text-[#0B132B] min-h-screen py-16 selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <section className="scroll-smooth bg-[var(--paper)] text-[var(--ink)] min-h-screen py-16 selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -328,22 +349,22 @@ export default async function BlogArticlePage({
           
           {/* Left Editorial Metadata Panel */}
           <aside className="order-2 lg:order-1 hidden lg:block">
-            <div className="space-y-8 lg:sticky lg:top-12 border-r border-[#0B132B]/10 pr-6">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-[#4B5563] space-y-4">
+            <div className="space-y-8 lg:sticky lg:top-12 border-r border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pr-6">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-[var(--ink-muted)] space-y-4">
                 <div>
-                  <span className="block font-bold text-[#0B132B]">Publisher</span>
+                  <span className="block font-bold text-[var(--ink)]">Publisher</span>
                   <span className="block mt-1">ArticleShip House</span>
                 </div>
                 <div>
-                  <span className="block font-bold text-[#0B132B]">Series</span>
+                  <span className="block font-bold text-[var(--ink)]">Series</span>
                   <span className="block mt-1">{article.payload?.keywords?.primary_keyword || "Technical Dispatch"}</span>
                 </div>
                 <div>
-                  <span className="block font-bold text-[#0B132B]">Composition</span>
+                  <span className="block font-bold text-[var(--ink)]">Composition</span>
                   <span className="block mt-1">Stagger Run Engine</span>
                 </div>
                 <div>
-                  <span className="block font-bold text-[#0B132B]">Format</span>
+                  <span className="block font-bold text-[var(--ink)]">Format</span>
                   <span className="block mt-1">Typeset Galley Proof</span>
                 </div>
               </div>
@@ -358,27 +379,27 @@ export default async function BlogArticlePage({
 
               {/* Byline and Category Flag */}
               <div className="mb-6 font-mono text-[10px] uppercase tracking-widest">
-                <span className="bg-[#FEF08A] text-[#0B132B] border border-[#0B132B]/20 px-2 py-0.5 font-bold">
+                <span className="bg-[var(--highlight)] text-[#0B132B] border border-[#0B132B]/20 px-2 py-0.5 font-bold">
                   {article.payload?.keywords?.primary_keyword || "Editorial"}
                 </span>
-                <span className="ml-3 text-[#4B5563]">Composition Dispatch</span>
+                <span className="ml-3 text-[var(--ink-muted)]">Composition Dispatch</span>
               </div>
 
               {/* Headline */}
-              <h1 className="mb-6 text-balance font-serif text-3xl md:text-4xl font-extrabold leading-tight text-[#0B132B] tracking-tight">
+              <h1 className="mb-6 text-balance font-serif text-3xl md:text-4xl font-extrabold leading-tight text-[var(--ink)] tracking-tight">
                 {title}
               </h1>
 
               {/* Deck / Abstract */}
               {description ? (
-                <p className="mb-8 font-serif text-lg leading-relaxed text-[#4B5563] italic border-l-2 border-[#0B132B]/20 pl-4">
+                <p className="mb-8 font-serif text-lg leading-relaxed text-[var(--ink-muted)] italic border-l-2 border-[color-mix(in_srgb,var(--ink)_20%,transparent)] pl-4">
                   {description}
                 </p>
               ) : null}
 
               {/* Author & Chronology Block */}
-              <div className="flex flex-wrap items-center gap-2 border-b border-[#0B132B]/10 pb-4 mb-8 font-mono text-[10px] uppercase tracking-widest text-[#4B5563]">
-                <span className="font-bold text-[#0B132B]">By Kush Goel</span>
+              <div className="flex flex-wrap items-center gap-2 border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4 mb-8 font-mono text-[10px] uppercase tracking-widest text-[var(--ink-muted)]">
+                <span className="font-bold text-[var(--ink)]">By Kush Goel</span>
                 <span>·</span>
                 <time>{publishedDate}</time>
                 <span>·</span>
@@ -389,8 +410,8 @@ export default async function BlogArticlePage({
               <PrintActions />
 
               {/* Mobile Manuscript Folio */}
-              <div className="block lg:hidden mb-8 border-2 border-[#0B132B] p-4 bg-white shadow-[2px_2px_0px_rgba(11,19,43,1)]">
-                <h3 className="border-b border-[#0B132B]/10 pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#0B132B] mb-4">
+              <div className="block lg:hidden mb-8 border-2 border-[var(--ink)] p-4 bg-[var(--plate)] shadow-[2px_2px_0px_var(--ink)]">
+                <h3 className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[var(--ink)] mb-4">
                   Folio Index
                 </h3>
                 <ManuscriptFolio items={tableOfContents} />
@@ -398,7 +419,7 @@ export default async function BlogArticlePage({
 
               {/* Hero Plate Illustration */}
               {shouldRenderHeroImage && heroImage?.url ? (
-                <div className="mb-10 overflow-hidden rounded-2xl border-2 border-[#0B132B]/10 bg-[#0B132B]/5">
+                <div className="mb-10 overflow-hidden rounded-2xl border-2 border-[color-mix(in_srgb,var(--ink)_10%,transparent)] bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={heroImage.url}
@@ -407,7 +428,7 @@ export default async function BlogArticlePage({
                     loading="lazy"
                   />
                   {heroImage.caption && (
-                    <div className="p-3 bg-white border-t border-[#0B132B]/10 font-mono text-[10px] text-[#4B5563] uppercase tracking-wider text-center">
+                    <div className="p-3 bg-[var(--plate)] border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] font-mono text-[10px] text-[var(--ink-muted)] uppercase tracking-wider text-center">
                       Plate: {heroImage.caption}
                     </div>
                   )}
@@ -416,17 +437,17 @@ export default async function BlogArticlePage({
 
               {/* Typographic Core Body Content */}
               <div 
-                className="article-html font-sans text-base leading-relaxed text-[#0B132B] space-y-6 prose prose-stone prose-md max-w-none" 
+                className="article-html font-sans text-base leading-relaxed text-[var(--ink)] space-y-6 prose prose-stone prose-md max-w-none" 
                 dangerouslySetInnerHTML={{ __html: content }} 
               />
 
               {tags.length > 0 ? (
-                <div className="mt-12 flex flex-wrap gap-2 border-t border-[#0B132B]/10 pt-8 font-mono text-[10px] uppercase tracking-widest">
-                  <span className="mr-2 self-center font-bold text-[#0B132B]">Indices:</span>
+                <div className="mt-12 flex flex-wrap gap-2 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pt-8 font-mono text-[10px] uppercase tracking-widest">
+                  <span className="mr-2 self-center font-bold text-[var(--ink)]">Indices:</span>
                   {tags.map((tag) => (
                     <span
                       key={tag}
-                      className="border border-[#0B132B]/20 bg-white px-2 py-1 text-[#4B5563]"
+                      className="border border-[color-mix(in_srgb,var(--ink)_20%,transparent)] bg-[var(--plate)] px-2 py-1 text-[var(--ink-muted)]"
                     >
                       {tag}
                     </span>
@@ -438,9 +459,9 @@ export default async function BlogArticlePage({
 
           {/* Right Literary Index Column (Table of Contents) */}
           <aside className="order-3 w-full lg:block hidden">
-            <div className="space-y-8 lg:sticky lg:top-12 border-l border-[#0B132B]/10 pl-6">
+            <div className="space-y-8 lg:sticky lg:top-12 border-l border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pl-6">
               <div className="space-y-3">
-                <h3 className="border-b border-[#0B132B]/10 pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[#0B132B]">
+                <h3 className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2 text-[10px] font-mono font-bold uppercase tracking-widest text-[var(--ink)]">
                   Folio Index
                 </h3>
                 <ManuscriptFolio items={tableOfContents} />
@@ -451,10 +472,10 @@ export default async function BlogArticlePage({
 
         {/* Recently Published Section */}
         {recentArticles.length > 0 ? (
-          <section className="mt-20 border-t-2 border-[#0B132B] pt-12">
+          <section className="mt-20 border-t-2 border-[var(--ink)] pt-12">
             <div className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
-              <h2 className="font-serif text-2xl font-extrabold text-[#0B132B]">Recent Technical Dispatches</h2>
-              <Link href="/articles" className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#1E3A8A] hover:underline">
+              <h2 className="font-serif text-2xl font-extrabold text-[var(--ink)]">Recent Technical Dispatches</h2>
+              <Link href="/articles" className="font-mono text-[10px] font-bold uppercase tracking-wider text-[var(--accent-deep)] hover:underline">
                 All Archives →
               </Link>
             </div>
@@ -473,21 +494,21 @@ export default async function BlogArticlePage({
                   <Link
                     key={recentArticle.id}
                     href={`/blog/${recentArticle.slug}`}
-                    className="group block bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] hover:shadow-[3px_3px_0px_rgba(29,78,216,1)] transition-all font-serif"
+                    className="group block bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] hover:shadow-[3px_3px_0px_rgba(29,78,216,1)] transition-all font-serif"
                   >
-                    <span className="mb-2 block font-mono text-[9px] font-bold uppercase tracking-widest text-[#1D4ED8]">
+                    <span className="mb-2 block font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--accent)]">
                       {recentCategory}
                     </span>
                     
-                    <h3 className="text-lg font-extrabold leading-tight text-[#0B132B] group-hover:underline">
+                    <h3 className="text-lg font-extrabold leading-tight text-[var(--ink)] group-hover:underline">
                       {recentTitle}
                     </h3>
                     
-                    <p className="mt-3 text-xs leading-relaxed text-[#4B5563] line-clamp-3">
+                    <p className="mt-3 text-xs leading-relaxed text-[var(--ink-muted)] line-clamp-3">
                       {recentSummary}
                     </p>
                     
-                    <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-[#4B5563]/60">
+                    <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">
                       {formatCompactDate(recentArticle.publishedAt)} · {recentReadMinutes} min read
                     </p>
                   </Link>

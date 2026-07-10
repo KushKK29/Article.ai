@@ -24,11 +24,11 @@ export default function ThemeToggle() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-slate-700 backdrop-blur-sm transition hover:bg-slate-50"
+        className="flex items-center gap-2 rounded-none border border-[color-mix(in_srgb,var(--ink)_30%,transparent)] bg-[var(--plate)] px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-[var(--ink)] transition hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
         aria-label="Change theme"
       >
-        <div 
-          className="h-3 w-3 rounded-full border border-slate-200" 
+        <div
+          className="h-3 w-3 rounded-full border border-[color-mix(in_srgb,var(--ink)_30%,transparent)]"
           style={{ backgroundColor: themes.find(t => t.name === theme)?.color }} 
         />
         <span className="hidden sm:inline">Theme</span>
@@ -40,7 +40,7 @@ export default function ThemeToggle() {
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)} 
           />
-          <div className="absolute right-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-xl animate-in fade-in slide-in-from-top-2">
+          <div className="absolute right-0 top-full z-50 mt-2 w-40 overflow-hidden rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] p-1 shadow-[3px_3px_0px_var(--press-dark)]">
             {themes.map((t) => (
               <button
                 key={t.name}
@@ -48,14 +48,14 @@ export default function ThemeToggle() {
                   setTheme(t.name);
                   setIsOpen(false);
                 }}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
-                  theme === t.name 
-                    ? "bg-slate-100 text-slate-900" 
-                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                className={`flex w-full items-center gap-3 rounded-none px-3 py-2 text-left font-mono text-xs font-bold uppercase tracking-wider transition ${
+                  theme === t.name
+                    ? "bg-[var(--ink)] text-[var(--paper)]"
+                    : "text-[var(--ink)] hover:bg-[color-mix(in_srgb,var(--ink)_5%,transparent)]"
                 }`}
               >
-                <div 
-                  className="h-3 w-3 rounded-full border border-slate-200" 
+                <div
+                  className="h-3 w-3 rounded-full border border-[color-mix(in_srgb,var(--ink)_30%,transparent)]"
                   style={{ backgroundColor: t.color }} 
                 />
                 {t.label}

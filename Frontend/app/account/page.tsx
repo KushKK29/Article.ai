@@ -43,14 +43,14 @@ export default function AccountSettingsPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-16 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <div className="mx-auto max-w-[900px] space-y-12">
         
         {/* Header Desk */}
-        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Workspace Settings</p>
+        <header className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--accent)]">Workspace Settings</p>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Account & Billing Ledger</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">
             Manage your subscription desk, inspect credit allotments, and update billing methods.
           </p>
         </header>
@@ -60,16 +60,16 @@ export default function AccountSettingsPage() {
           
           <div className="space-y-8">
             {/* Plan Info */}
-            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] space-y-6">
-              <div className="flex justify-between items-start border-b border-[#0B132B]/10 pb-4">
+            <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)] space-y-6">
+              <div className="flex justify-between items-start border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4">
                 <div>
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#1D4ED8] bg-[#FEF08A] border border-[#0B132B]/20 px-2 py-0.5 inline-block">Active Plan</span>
+                  <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#1D4ED8] bg-[var(--highlight)] border border-[#0B132B]/20 px-2 py-0.5 inline-block">Active Plan</span>
                   <h2 className="text-2xl font-extrabold mt-2">{plan.name}</h2>
-                  <p className="text-xs font-mono uppercase text-[#4B5563] mt-1">{plan.price} • Renews on {new Date(plan.renewalDate).toLocaleDateString()}</p>
+                  <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">{plan.price} • Renews on {new Date(plan.renewalDate).toLocaleDateString()}</p>
                 </div>
                 <Link 
                   href="/pricing" 
-                  className="rounded-none bg-[#0B132B] text-white px-4 py-2 text-[10px] font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
+                  className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2 text-[10px] font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
                 >
                   Change Rate
                 </Link>
@@ -82,29 +82,29 @@ export default function AccountSettingsPage() {
                   <span>{plan.creditsLimit - plan.creditsUsed} / {plan.creditsLimit} Runs Remaining</span>
                 </div>
                 {/* Visual Ledger Progress Bar */}
-                <div className="w-full bg-[#F4F6F9] border border-[#0B132B]/25 h-4 p-[2px]">
+                <div className="w-full bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_25%,transparent)] h-4 p-[2px]">
                   <div 
-                    className="bg-[#1D4ED8] h-full transition-all"
+                    className="bg-[var(--accent)] h-full transition-all"
                     style={{ width: `${((plan.creditsLimit - plan.creditsUsed) / plan.creditsLimit) * 100}%` }}
                   />
                 </div>
-                <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed">
                   Your monthly quota resets to {plan.creditsLimit} runs on {new Date(plan.renewalDate).toLocaleDateString()}. Unused runs do not roll over.
                 </p>
               </div>
             </div>
 
             {/* Credit Ledger History */}
-            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] space-y-4">
-              <h3 className="text-lg font-extrabold border-b border-[#0B132B]/10 pb-2">Manuscript Run Registry</h3>
-              <div className="divide-y divide-[#0B132B]/10 font-mono text-[10px] uppercase tracking-wider text-[#4B5563]">
+            <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)] space-y-4">
+              <h3 className="text-lg font-extrabold border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">Manuscript Run Registry</h3>
+              <div className="divide-y divide-[color-mix(in_srgb,var(--ink)_10%,transparent)] font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
                 {usageHistory.map((log) => (
                   <div key={log.id} className="py-3 flex justify-between items-center gap-4">
                     <div className="truncate">
-                      <span className="text-[#0B132B] font-bold block truncate">{log.topic}</span>
-                      <span className="text-[9px] text-[#4B5563]/60">{log.date}</span>
+                      <span className="text-[var(--ink)] font-bold block truncate">{log.topic}</span>
+                      <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">{log.date}</span>
                     </div>
-                    <span className="font-bold text-[#1D4ED8] flex-shrink-0">-{log.creditsConsumed} Run</span>
+                    <span className="font-bold text-[var(--accent)] flex-shrink-0">-{log.creditsConsumed} Run</span>
                   </div>
                 ))}
               </div>
@@ -113,25 +113,25 @@ export default function AccountSettingsPage() {
 
           {/* Payment Method Panel */}
           <aside className="space-y-6">
-            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] space-y-4">
-              <h3 className="text-sm font-extrabold font-serif border-b border-[#0B132B]/10 pb-2">Payment Method</h3>
-              <div className="font-mono text-[10px] uppercase tracking-wider text-[#4B5563] space-y-2">
-                <div className="flex justify-between items-center bg-[#F4F6F9] border border-[#0B132B]/10 p-3">
+            <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] space-y-4">
+              <h3 className="text-sm font-extrabold font-serif border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">Payment Method</h3>
+              <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)] space-y-2">
+                <div className="flex justify-between items-center bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] p-3">
                   <span>{paymentMethod.brand} •••• {paymentMethod.last4}</span>
-                  <span className="text-[9px] text-[#4B5563]/60">Exp: {paymentMethod.expiry}</span>
+                  <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">Exp: {paymentMethod.expiry}</span>
                 </div>
                 <button 
                   onClick={() => alert("Redirecting to secured payment gateway portal...")}
-                  className="w-full text-center py-2.5 bg-white border border-[#0B132B] text-[#0B132B] font-bold hover:bg-[#F4F6F9] transition-all"
+                  className="w-full text-center py-2.5 bg-[var(--plate)] border border-[var(--ink)] text-[var(--ink)] font-bold hover:bg-[var(--paper)] transition-all"
                 >
                   Update Card
                 </button>
               </div>
             </div>
 
-            <div className="bg-white border-2 border-rose-800 rounded-2xl p-6 shadow-[3px_3px_0px_rgba(225,29,72,0.03)] space-y-4">
+            <div className="bg-[var(--plate)] border-2 border-rose-800 rounded-2xl p-6 shadow-[3px_3px_0px_rgba(225,29,72,0.03)] space-y-4">
               <h3 className="text-sm font-extrabold text-rose-800 border-b border-rose-800/10 pb-2">Decommission Desk</h3>
-              <p className="font-serif text-[11px] text-[#4B5563] leading-relaxed">
+              <p className="font-serif text-[11px] text-[var(--ink-muted)] leading-relaxed">
                 Deactivating your workspace will purge all pending staggered schedules and delete all archived manuscripts from our servers.
               </p>
               <button 

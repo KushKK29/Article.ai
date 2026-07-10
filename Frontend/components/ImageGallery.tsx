@@ -29,7 +29,7 @@ export default function ImageGallery({ images, onRegenerate, loading }: ImageGal
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {images.map((image) => (
-            <figure key={`${image.heading}-${image.url}`} className="rounded-xl border border-slate-200 bg-white p-3">
+            <figure key={`${image.heading}-${image.url}`} className="rounded-xl border border-slate-200 bg-[var(--plate)] p-3">
               <div className="relative h-44 w-full overflow-hidden rounded-lg bg-slate-100">
                 <Image src={image.url} alt={image.alt} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
               </div>

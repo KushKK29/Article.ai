@@ -32,8 +32,8 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F4F6F9] flex items-center justify-center">
-        <p className="font-mono text-[10px] uppercase tracking-widest text-[#4B5563] animate-pulse">
+      <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center">
+        <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--ink-muted)] animate-pulse">
           Verifying credentials…
         </p>
       </div>

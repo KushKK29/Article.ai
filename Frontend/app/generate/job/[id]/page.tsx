@@ -127,50 +127,50 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
   })();
 
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-12 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B] max-w-[1000px] mx-auto">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-12 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B] max-w-[1000px] mx-auto">
       {/* Title block for SEO & Context */}
       <title>{job ? `Galley Run: ${job.topic}` : "Manuscript Galley Run"}</title>
       
       <div className="mb-8">
-        <Link href="/generate" className="text-xs font-mono uppercase font-bold text-[#1E3A8A] hover:underline flex items-center gap-1">
+        <Link href="/generate" className="text-xs font-mono uppercase font-bold text-[var(--accent-deep)] hover:underline flex items-center gap-1">
           &larr; Return to Manuscript Desk
         </Link>
       </div>
 
       {error ? (
-        <div className="bg-white border-2 border-rose-350 rounded-2xl p-6 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]" id="job-error-container">
+        <div className="bg-[var(--plate)] border-2 border-rose-350 rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)]" id="job-error-container">
           <h1 className="font-serif text-lg font-extrabold text-rose-800 mb-2">Typesetter Off-line</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">{error}</p>
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">{error}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="mt-4 rounded-none bg-[#0B132B] text-white px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
+            className="mt-4 rounded-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5"
           >
             Re-engage Press
           </button>
         </div>
       ) : !job ? (
         <div className="flex flex-col items-center justify-center py-20 font-mono text-xs">
-          <div className="animate-spin rounded-none border-2 border-t-4 border-[#0B132B] h-10 w-10 mb-4"></div>
-          <p className="text-[#4B5563] uppercase tracking-wider font-bold">Querying Galley Status...</p>
+          <div className="animate-spin rounded-none border-2 border-t-4 border-[var(--ink)] h-10 w-10 mb-4"></div>
+          <p className="text-[var(--ink-muted)] uppercase tracking-wider font-bold">Querying Galley Status...</p>
         </div>
       ) : (
         <div className="space-y-8">
-          <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0B132B] bg-[#FEF08A] border border-[#0B132B]/20 px-3 py-1 inline-block">
+          <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0B132B] bg-[var(--highlight)] border border-[#0B132B]/20 px-3 py-1 inline-block">
               RUN ID: {job._id}
             </span>
             
-            <h1 className="font-serif text-2xl md:text-3xl font-extrabold text-[#0B132B] mt-4 mb-2 leading-tight">
+            <h1 className="font-serif text-2xl md:text-3xl font-extrabold text-[var(--ink)] mt-4 mb-2 leading-tight">
               {job.topic}
             </h1>
             
-            <div className="flex flex-wrap items-center gap-3 mt-4 text-xs font-mono uppercase text-[#4B5563]">
+            <div className="flex flex-wrap items-center gap-3 mt-4 text-xs font-mono uppercase text-[var(--ink-muted)]">
               <div>
                 Press Status:{" "}
                 <span className={`font-bold ${
                   job.status === "completed" ? "text-emerald-700" :
                   job.status === "failed" ? "text-rose-700" :
-                  job.status === "processing" ? "text-[#1D4ED8]" : "text-[#4B5563]"
+                  job.status === "processing" ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"
                 }`} id="job-status-value">
                   {job.status}
                 </span>
@@ -181,12 +181,12 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
 
             {/* In Progress Inline Card */}
             {job.status !== "failed" && job.status !== "completed" && (
-              <div className="mt-8 p-4 border-2 border-[#0B132B] bg-[#F4F6F9] flex items-center gap-4">
+              <div className="mt-8 p-4 border-2 border-[var(--ink)] bg-[var(--paper)] flex items-center gap-4">
                 <div className="relative flex-shrink-0">
-                  <div className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-[#1D4ED8] opacity-75"></div>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[#1D4ED8]"></span>
+                  <div className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-[var(--accent)] opacity-75"></div>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-[var(--accent)]"></span>
                 </div>
-                <div className="text-xs font-mono uppercase font-bold text-[#0B132B]">
+                <div className="text-xs font-mono uppercase font-bold text-[var(--ink)]">
                   {job.status === "queued" ? "Galley in printing queue..." : `Composing Stage: ${job.current_step}...`}
                 </div>
               </div>
@@ -202,7 +202,7 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
                   Requesting manual editor intervention.
                 </p>
                 <div className="mt-4 flex gap-3">
-                  <Link href="/generate" className="rounded-none bg-[#0B132B] text-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5">
+                  <Link href="/generate" className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5">
                     Return to Desk
                   </Link>
                 </div>
@@ -212,20 +212,20 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
 
           {/* Stepper Progress Element (Galley Tray) */}
           {job.status !== "failed" && (
-            <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
-              <h2 className="font-serif text-lg font-extrabold text-[#0B132B] mb-6">Galley Tray Run Status</h2>
+            <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">
+              <h2 className="font-serif text-lg font-extrabold text-[var(--ink)] mb-6">Galley Tray Run Status</h2>
               
               {/* Desktop Galley Tray */}
-              <div className="hidden md:grid grid-cols-5 gap-3 border-2 border-[#0B132B] bg-[#0B132B]/5 p-3 rounded-none mb-2">
+              <div className="hidden md:grid grid-cols-5 gap-3 border-2 border-[var(--ink)] bg-[color-mix(in_srgb,var(--ink)_5%,transparent)] p-3 rounded-none mb-2">
                 {STEPS.map((step, idx) => {
                   const isCompleted = idx < activeStepIndex;
                   const isActive = idx === activeStepIndex && job.status === "processing";
                   const isPending = idx > activeStepIndex || job.status === "queued";
                   const isFailedStep = idx === activeStepIndex && job.status === "failed";
 
-                  let bgStyle = "bg-white text-[#0B132B]/40 border-[#0B132B]/10 border-dashed";
-                  if (isCompleted) bgStyle = "bg-[#0B132B] text-white border-[#0B132B]";
-                  if (isActive) bgStyle = "bg-[#FEF08A] text-[#0B132B] border-[#0B132B] shadow-[2px_2px_0px_rgba(11,19,43,1)] font-bold animate-pulse";
+                  let bgStyle = "bg-[var(--plate)] text-[color-mix(in_srgb,var(--ink)_40%,transparent)] border-[color-mix(in_srgb,var(--ink)_10%,transparent)] border-dashed";
+                  if (isCompleted) bgStyle = "bg-[var(--ink)] text-[var(--paper)] border-[var(--ink)]";
+                  if (isActive) bgStyle = "bg-[var(--highlight)] text-[#0B132B] border-[#0B132B] shadow-[2px_2px_0px_var(--ink)] font-bold animate-pulse";
                   if (isFailedStep) bgStyle = "bg-rose-100 text-rose-800 border-rose-800 font-bold";
 
                   return (
@@ -238,16 +238,16 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
               </div>
 
               {/* Mobile Stack Tray */}
-              <div className="md:hidden space-y-4 border-l-2 border-[#0B132B] pl-4 mb-2">
+              <div className="md:hidden space-y-4 border-l-2 border-[var(--ink)] pl-4 mb-2">
                 {STEPS.map((step, idx) => {
                   const isCompleted = idx < activeStepIndex;
                   const isActive = idx === activeStepIndex && job.status === "processing";
                   const isPending = idx > activeStepIndex || job.status === "queued";
                   const isFailedStep = idx === activeStepIndex && job.status === "failed";
 
-                  let bgStyle = "border-transparent bg-transparent text-[#4B5563] opacity-60";
-                  if (isCompleted) bgStyle = "border-[#0B132B] bg-white text-[#0B132B] shadow-[1.5px_1.5px_0px_rgba(11,19,43,1)]";
-                  if (isActive) bgStyle = "border-[#1D4ED8] bg-[#FEF08A] text-[#0B132B] font-bold shadow-[2px_2px_0px_rgba(29,78,216,1)]";
+                  let bgStyle = "border-transparent bg-transparent text-[var(--ink-muted)] opacity-60";
+                  if (isCompleted) bgStyle = "border-[var(--ink)] bg-[var(--plate)] text-[var(--ink)] shadow-[1.5px_1.5px_0px_var(--ink)]";
+                  if (isActive) bgStyle = "border-[#1D4ED8] bg-[var(--highlight)] text-[#0B132B] font-bold shadow-[2px_2px_0px_rgba(29,78,216,1)]";
                   if (isFailedStep) bgStyle = "border-rose-800 bg-rose-50 text-rose-800";
 
                   return (
@@ -264,12 +264,12 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
           {/* Finished Article section */}
           {job.status === "completed" && article && (
             <div className="space-y-6" id="finished-article-container">
-              <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)] flex flex-wrap items-center justify-between gap-4">
+              <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)] flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-serif text-lg font-extrabold text-[#0B132B]">Manuscript Composition Complete</h2>
-                  <p className="text-xs font-mono uppercase text-[#4B5563] mt-1">Ready for print layout, editor feedback, and publishing.</p>
+                  <h2 className="font-serif text-lg font-extrabold text-[var(--ink)]">Manuscript Composition Complete</h2>
+                  <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">Ready for print layout, editor feedback, and publishing.</p>
                   {job.resolved_image_count !== undefined && job.resolved_image_count !== null && job.image_count !== undefined && job.image_count !== null && (
-                    <p className="text-xs font-mono text-[#1D4ED8] mt-2 font-bold" id="job-image-resolution-feedback">
+                    <p className="text-xs font-mono text-[var(--accent)] mt-2 font-bold" id="job-image-resolution-feedback">
                       {job.resolved_image_count} images placed 
                       {job.resolved_image_count < job.image_count && (
                         <span> (your topic's outline didn't have enough sections to fit the requested {job.image_count})</span>
@@ -280,7 +280,7 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
                 <div>
                   <Link 
                     href={`/generate?articleId=${article.id}`}
-                    className="rounded-none bg-[#0B132B] text-white px-5 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 block text-center"
+                    className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-5 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 block text-center"
                     id="edit-article-workbench-btn"
                   >
                     Open in Editor Desk &rarr;
@@ -288,16 +288,16 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <div className="bg-white border-2 border-[#0B132B] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_rgba(11,19,43,0.05)]">
-                <div className="border-b border-[#0B132B]/10 pb-4 mb-6">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#0B132B] bg-[#F4F6F9] border border-[#0B132B]/10 px-3 py-1">
+              <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">
+                <div className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4 mb-6">
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[var(--ink)] bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] px-3 py-1">
                     {article.category}
                   </span>
-                  <h3 className="font-serif text-xl font-extrabold text-[#0B132B] mt-4">{article.topic}</h3>
+                  <h3 className="font-serif text-xl font-extrabold text-[var(--ink)] mt-4">{article.topic}</h3>
                 </div>
 
                 <article 
-                  className="article-html max-h-[500px] overflow-auto rounded-none border-2 border-[#0B132B] p-6 bg-[#F4F6F9] font-sans"
+                  className="article-html max-h-[500px] overflow-auto rounded-none border-2 border-[var(--ink)] p-6 bg-[var(--paper)] font-sans"
                   dangerouslySetInnerHTML={{ __html: article.payload.content }}
                 />
               </div>

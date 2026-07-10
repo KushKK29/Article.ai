@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function TermsOfServicePage() {
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-16 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <article className="mx-auto max-w-[800px] space-y-12">
         
         {/* Legal Disclaimer Banner */}
@@ -25,13 +25,13 @@ export default function TermsOfServicePage() {
           This document is a draft version compiled for customer preview. It is not legal advice and must be formally reviewed and edited by qualified legal counsel prior to commercial deployment.
         </div>
 
-        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Legal Registry</p>
+        <header className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--accent)]">Legal Registry</p>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Terms of Service</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">Last Revised: June 2026</p>
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">Last Revised: June 2026</p>
         </header>
 
-        <section className="prose prose-stone prose-md space-y-6 text-[#0B132B]">
+        <section className="prose prose-stone prose-md space-y-6 text-[var(--ink)]">
           <p className="leading-relaxed">
             Welcome to ArticleShip (the &quot;Service&quot;). By accessing our digital manuscript composition tools, you agree to comply with the terms and acceptable use guidelines outlined below.
           </p>
@@ -40,7 +40,7 @@ export default function TermsOfServicePage() {
           <p className="leading-relaxed">
             Our automated press is designed to assist writers, bloggers, and agencies in generating high-quality draft manuscripts. You agree not to use the Service to generate:
           </p>
-          <ul className="list-disc pl-5 space-y-2 font-mono text-[11px] uppercase tracking-wider text-[#4B5563]">
+          <ul className="list-disc pl-5 space-y-2 font-mono text-[11px] uppercase tracking-wider text-[var(--ink-muted)]">
             <li>Content for illegal, defamatory, or deceptive purposes.</li>
             <li>Low-quality web spam or automated link farm schemes.</li>
             <li>Plagiarized drafts that violate existing copyright or trademarks.</li>
@@ -64,14 +64,14 @@ export default function TermsOfServicePage() {
 
           <h2 className="text-xl font-extrabold pt-4 font-serif">5. Revisions and Inquiries</h2>
           <p className="leading-relaxed">
-            We reserve the right to modify these terms. If you have questions, please reach out to us at: <a href="mailto:desk@articleship.com" className="text-[#1E3A8A] font-bold hover:underline">desk@articleship.com</a>.
+            We reserve the right to modify these terms. If you have questions, please reach out to us at: <a href="mailto:desk@articleship.com" className="text-[var(--accent-deep)] font-bold hover:underline">desk@articleship.com</a>.
           </p>
         </section>
 
-        <div className="pt-8 border-t border-[#0B132B]/10">
+        <div className="pt-8 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)]">
           <Link 
             href="/" 
-            className="inline-flex items-center justify-center rounded-none border-2 border-[#0B132B] bg-white px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:bg-[#F4F6F9]"
+            className="inline-flex items-center justify-center rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_var(--ink)] hover:bg-[var(--paper)]"
           >
             &larr; Return to Home Desk
           </Link>

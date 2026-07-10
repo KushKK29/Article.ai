@@ -15,7 +15,7 @@ interface ManuscriptFolioProps {
 export default function ManuscriptFolio({ items }: ManuscriptFolioProps) {
   if (!items || items.length === 0) {
     return (
-      <div className="font-mono text-[10px] uppercase tracking-wider text-[#4B5563]/60">
+      <div className="font-mono text-[10px] uppercase tracking-wider text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">
         No section divisions typeset.
       </div>
     );
@@ -25,14 +25,14 @@ export default function ManuscriptFolio({ items }: ManuscriptFolioProps) {
     <nav className="space-y-2.5 font-mono text-[10px] uppercase tracking-wider">
       {items.map((item, index) => {
         // Calculate indentation and styling based on header level
-        let indentClass = "pl-0 font-bold text-[#0B132B]";
+        let indentClass = "pl-0 font-bold text-[var(--ink)]";
         let prefix = "§";
         
         if (item.level === 3) {
-          indentClass = "pl-4 text-[#4B5563]";
+          indentClass = "pl-4 text-[var(--ink-muted)]";
           prefix = "•";
         } else if (item.level === 4) {
-          indentClass = "pl-8 text-[#4B5563]/70 text-[9px]";
+          indentClass = "pl-8 text-[color-mix(in_srgb,var(--ink-muted)_70%,transparent)] text-[9px]";
           prefix = "▪";
         }
 
@@ -40,9 +40,9 @@ export default function ManuscriptFolio({ items }: ManuscriptFolioProps) {
           <a
             key={index}
             href={item.href}
-            className={`block hover:text-[#1D4ED8] hover:underline transition-colors leading-tight ${indentClass}`}
+            className={`block hover:text-[var(--accent)] hover:underline transition-colors leading-tight ${indentClass}`}
           >
-            <span className="mr-1.5 text-[#1D4ED8] font-bold">{prefix}</span>
+            <span className="mr-1.5 text-[var(--accent)] font-bold">{prefix}</span>
             {item.label}
           </a>
         );

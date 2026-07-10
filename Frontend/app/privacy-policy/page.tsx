@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="min-h-screen bg-[#F4F6F9] text-[#0B132B] px-6 py-16 md:px-12 font-serif selection:bg-[#FEF08A] selection:text-[#0B132B]">
+    <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-16 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <article className="mx-auto max-w-[800px] space-y-12">
         
         {/* Legal Disclaimer Banner */}
@@ -25,13 +25,13 @@ export default function PrivacyPolicyPage() {
           This document is a draft version compiled for customer preview. It is not legal advice and must be formally reviewed and edited by qualified legal counsel prior to commercial deployment.
         </div>
 
-        <header className="border-b border-[#0B132B]/10 pb-8 space-y-3">
-          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[#1D4ED8]">Compliance Desk</p>
+        <header className="border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-8 space-y-3">
+          <p className="text-xs font-mono font-bold uppercase tracking-widest text-[var(--accent)]">Compliance Desk</p>
           <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight">Privacy Policy</h1>
-          <p className="text-xs font-mono uppercase text-[#4B5563]">Last Revised: June 2026</p>
+          <p className="text-xs font-mono uppercase text-[var(--ink-muted)]">Last Revised: June 2026</p>
         </header>
 
-        <section className="prose prose-stone prose-md space-y-6 text-[#0B132B]">
+        <section className="prose prose-stone prose-md space-y-6 text-[var(--ink)]">
           <p className="leading-relaxed">
             At ArticleShip (operated by Kush Goel), we respect your privacy and strive to maintain a transparent account of our technical data processing infrastructure. This document outlines how user information is registered, processed, and transmitted.
           </p>
@@ -64,14 +64,14 @@ export default function PrivacyPolicyPage() {
 
           <h2 className="text-xl font-extrabold pt-4 font-serif">5. Contact Information</h2>
           <p className="leading-relaxed">
-            For questions regarding our privacy protocol, please contact us at: <a href="mailto:legal@articleship.com" className="text-[#1E3A8A] font-bold hover:underline">legal@articleship.com</a>.
+            For questions regarding our privacy protocol, please contact us at: <a href="mailto:legal@articleship.com" className="text-[var(--accent-deep)] font-bold hover:underline">legal@articleship.com</a>.
           </p>
         </section>
 
-        <div className="pt-8 border-t border-[#0B132B]/10">
+        <div className="pt-8 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)]">
           <Link 
             href="/" 
-            className="inline-flex items-center justify-center rounded-none border-2 border-[#0B132B] bg-white px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(11,19,43,1)] hover:bg-[#F4F6F9]"
+            className="inline-flex items-center justify-center rounded-none border-2 border-[var(--ink)] bg-[var(--plate)] px-6 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[2px_2px_0px_var(--ink)] hover:bg-[var(--paper)]"
           >
             &larr; Return to Home Desk
           </Link>

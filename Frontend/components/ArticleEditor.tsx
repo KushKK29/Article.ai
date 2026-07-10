@@ -70,9 +70,9 @@ export default function ArticleEditor({ blocks, setBlocks, keywords }: ArticleEd
       ) : (
         <div className="space-y-5">
           {blocks.map((block, index) => (
-            <article key={`${block.heading}-${index}`} className="relative rounded-xl border border-slate-200 bg-white p-4">
+            <article key={`${block.heading}-${index}`} className="relative rounded-xl border border-slate-200 bg-[var(--plate)] p-4">
               {rewritingIndex === index && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70 backdrop-blur-sm">
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[var(--press-light)] backdrop-blur-sm">
                   <div className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-xl">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     AI Rewriting...

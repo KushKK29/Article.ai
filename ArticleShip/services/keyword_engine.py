@@ -1,5 +1,3 @@
-import re
-import json
 import asyncio
 import logging
 from dotenv import load_dotenv
@@ -89,11 +87,12 @@ def _retrieve_context_sync(topic: str) -> str:
 
 
 # ── 2. LLM call ───────────────────────────────────────────────────────────────
-def _generate_keywords_sync(prompt: str):
-    return client.generate(
+def _generate_keywords_sync(prompt: str) -> dict:
+    # Explicit token limit + truncation retry; raises ValueError on failure.
+    return client.generate_json(
         prompt,
         temperature=0.5,                        # fix 5: was 0.3
-        json_mode=True,
+        max_output_tokens=3072,
     )
 
 
@@ -121,12 +120,15 @@ async def generate_seo_keywords(topic: str) -> dict:
         if formatted:
             search_context = formatted
 
-    # Fix 4: guard against ungrounded generation when retrieval fails
+    # Fix 4: guard against ungrounded generation when retrieval fails.
+    # Raise instead of returning an error dict — callers (worker, pipeline,
+    # API endpoints) must see this as a hard failure, not degraded output.
     if search_context == "No context available.":
-        return {
-            "error": "Retrieval failed — no search context available.",
-            "message": "Cannot generate grounded keywords without live search signal.",
-        }
+        logger.error("Keyword generation aborted for '%s': no search context from any provider.", topic)
+        raise RuntimeError(
+            "Keyword retrieval failed — no search context available from DuckDuckGo or Tavily/Exa. "
+            "Cannot generate grounded keywords without live search signal."
+        )
 
     # --- Prompt ---
     prompt = f"""You are a senior SEO strategist building keyword research for 'ArticleShip', a high-authority content platform.
@@ -201,23 +203,12 @@ Required JSON schema:
   }}
 }}"""
 
-    # --- Gemini API Call (fix 6: safe response handling) ---
-    response = None
+    # --- Gemini API Call ---
+    # generate_json handles fence stripping, truncation retry, and parsing.
+    # Any failure raises and is surfaced by the caller (job marked failed /
+    # endpoint returns 500) — never silently passed through as degraded output.
     try:
-        response = await asyncio.to_thread(_generate_keywords_sync, prompt)
-
-        # Fix 5: regex strip handles leading spaces before fences
-        raw = re.sub(r"^```(?:json)?\s*", "", response.text.strip())
-        raw = re.sub(r"\s*```$", "", raw).strip()
-        return json.loads(raw)
-
-    except json.JSONDecodeError as e:
-        return {
-            "error": f"JSON parse failed: {e}",
-            "raw": response.text if response else "No response object",
-        }
+        return await asyncio.to_thread(_generate_keywords_sync, prompt)
     except Exception as e:
-        return {
-            "error": str(e),
-            "raw": response.text if response else "API call failed before response",
-        }
+        logger.error("Keyword generation failed for '%s': %s", topic, e)
+        raise

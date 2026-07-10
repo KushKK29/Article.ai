@@ -1,4 +1,3 @@
-import re
 import json
 import asyncio
 import logging
@@ -93,11 +92,12 @@ def _retrieve_structure_context_sync(topic: str) -> str:
 
 
 # ── 2. LLM call — temperature now explicit ────────────────────────────────────
-def _generate_structure_sync(prompt: str):
-    return client.generate(
+def _generate_structure_sync(prompt: str) -> dict:
+    # Explicit token limit + truncation retry; raises ValueError on failure.
+    return client.generate_json(
         prompt,
         temperature=0.4,
-        json_mode=True,
+        max_output_tokens=4096,
     )
 
 
@@ -176,6 +176,43 @@ def _compute_heading_targets(word_count_target: int) -> dict:
             "h3_guideline": "Break each H2 into 2–4 focused H3 sub-topics, using H4s under H3s if sub-topics have multiple distinct sub-points.",
             "total_headings": 18
         }
+
+
+def _trim_overshoot(structure: dict, targets: dict, word_count_target: int) -> dict:
+    """
+    Hard-enforce the heading budget the prompt only softly requests.
+    Trims excess H2 sections (preserving the final FAQ/conclusion section)
+    and caps H3 subsections per tier.
+    """
+    sections = structure.get("sections", [])
+    h2_max = targets["h2_max"]
+
+    if len(sections) > h2_max:
+        logger.warning(
+            "HEADING_OVERSHOOT: model generated %d H2 sections (max %d); trimming.",
+            len(sections), h2_max,
+        )
+        # Keep the last section — it's the FAQ/closing section the prompt requires.
+        sections = sections[: h2_max - 1] + [sections[-1]]
+
+    if word_count_target <= 500:
+        max_h3 = 0
+    elif word_count_target <= 1000:
+        max_h3 = 2
+    else:
+        max_h3 = 4
+
+    for section in sections:
+        subs = section.get("subsections", [])
+        if len(subs) > max_h3:
+            logger.warning(
+                "HEADING_OVERSHOOT: H2 '%s' has %d H3s (max %d); trimming.",
+                section.get("h2", ""), len(subs), max_h3,
+            )
+            section["subsections"] = subs[:max_h3]
+
+    structure["sections"] = sections
+    return structure
 
 
 def _assign_image_slots(structure: dict, image_count: int, image_spacing: int) -> tuple[list[int], int]:
@@ -302,7 +339,7 @@ STRUCTURE RULES:
 2. H2s ({targets['h2_min']}–{targets['h2_max']} required): Each H2 is a major standalone section. Distribute secondary keywords across H2 headings — one secondary keyword per H2 where it fits naturally. Do not force it.
    REQUIRED: At least one H2 must be explicitly failure/risk-focused (e.g. "Where Copilot Actually Failed Us"). Generic positive-only structures will not rank against experienced practitioners who document real problems.
    REQUIRED: No two H2s may overlap in scope. Before finalising, check each H2 pair — if both could contain the same paragraph, one of them is redundant.
-   REQUIRED: Generate approximately {targets['total_headings']} total headings (H2+H3 combined) to fit a {word_count_target}-word article.
+   HARD LIMIT: No more than {targets['h2_max']} H2 sections and no more than {targets['total_headings']} total headings (H2+H3 combined) for a {word_count_target}-word article. Headings beyond these limits will be deleted automatically — do not exceed them.
 
 3. H3s ({targets['h3_guideline']}): Break each H2 into focused sub-topics. Use long-tail keywords in H3s where relevant — they signal content depth to Google.
    REQUIRED: At least one H3 per article must be a named-mistake or specific-scenario heading (e.g. "The Binary Search Bug That Passed Code Review"). These dramatically increase dwell time and social sharing.
@@ -349,33 +386,20 @@ Schema:
   ]
 }}"""
 
-    # Issues 3 + 4: regex fence stripping + split exception handling
-    response = None
-    try:
-        response = await asyncio.to_thread(_generate_structure_sync, prompt)
+    # generate_json handles fence stripping, truncation retry, and parsing.
+    # Failures raise so the worker marks the job failed with a real error
+    # message instead of passing an error dict downstream.
+    parsed = _strip_empty_h4s(await asyncio.to_thread(_generate_structure_sync, prompt))
 
-        raw = response.text.strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw).strip()
-        parsed = _strip_empty_h4s(json.loads(raw))  # Fix 3
-        warnings = _validate_structure(parsed, word_count_target)       # Fix 4
-        
-        # Post-generation: assign image slots based on image parameters
-        slots, resolved = _assign_image_slots(parsed, image_count, image_spacing)
-        parsed["assigned_image_slots"] = slots
-        parsed["resolved_image_count"] = resolved
-        
-        if warnings:
-            parsed["_validation_warnings"] = warnings
-        return parsed
+    # Hard-enforce heading budget before validation and image-slot assignment.
+    parsed = _trim_overshoot(parsed, targets, word_count_target)
+    warnings = _validate_structure(parsed, word_count_target)
 
-    except json.JSONDecodeError as e:
-        return {
-            "error": f"JSON parse failed: {e}",
-            "raw": response.text if response else "No response object",
-        }
-    except Exception as e:
-        return {
-            "error": str(e),
-            "raw": response.text if response else "API call failed before response",
-        }
+    # Post-generation: assign image slots based on image parameters
+    slots, resolved = _assign_image_slots(parsed, image_count, image_spacing)
+    parsed["assigned_image_slots"] = slots
+    parsed["resolved_image_count"] = resolved
+
+    if warnings:
+        parsed["_validation_warnings"] = warnings
+    return parsed
