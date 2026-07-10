@@ -484,9 +484,10 @@ CONTENT ANGLE — lead with this differentiation hook, do not ignore it:
 {seo_data.get('content_angle', '')}
 
 SEO INTEGRATION:
-- Primary keyword ("{primary_kw}"): MUST appear in the first 2 sentences of the article, in at least one H2 heading verbatim, and in the final paragraph. This is non-negotiable.
+- Primary keyword ("{primary_kw}"): MUST appear in the first 2 sentences of the article, in exactly one H2 heading verbatim, and in the final paragraph. This is non-negotiable.
+- EXACT-MATCH CAP (anti-spam): the primary keyword may appear VERBATIM at most 3 times in the whole article (intro, one H2, closing). Everywhere else, use natural variants and partial phrases — repeating the full exact phrase reads as spam to both readers and Google.
+- Long-tail keywords: each must appear once in body copy — REWORDED to fit the sentence grammatically. A raw search query is not a sentence fragment: "the price difference between X and Y worth it or not becomes clear" is a violation; rewrite the sentence so a human editor would not notice the keyword was inserted. If a long-tail cannot be made grammatical, use its closest natural phrasing instead.
 - Secondary keywords: weave into H2/H3 openings naturally — one per section, not clustered.
-- Long-tail keywords: each must appear at least once in body copy as a natural phrase — never bolted on at the end of a sentence.
 - LSI keywords: distribute throughout as supporting vocabulary — they signal topical authority to Google.
 - Search intent: {search_intent} — every section must serve this intent. Do not drift into unrelated subtopics.
 - Never bold keywords or any search phrase in body text. Bold is for subheadings only.
@@ -650,6 +651,8 @@ WRITING RULES:
     - A terminal command or config snippet implementing the described workflow
     Every code block must have a 1–2 sentence explanation of what it demonstrates and what to watch for in the output.
     Do not add code for its own sake — only where it directly illustrates the claim.
+    CODE ACCURACY (critical — wrong code destroys developer trust faster than any prose error):
+    Only write code/config you are certain is syntactically valid for the named tool, using its real field names and flags. If you are not certain of a tool's exact API schema (e.g. a Kubernetes CRD), use a well-known generic command instead, or describe the config in prose — NEVER invent plausible-looking field names.
 
 21. INTERNAL LINKS
     {_internal_links_block}
@@ -805,28 +808,61 @@ def _ground_generated_article(
         return number in context_numbers
 
     out_lines: list[str] = []
+    # Section floor: removals are staged per heading-section. If stripping
+    # ungrounded stats would leave a section with NO prose at all (the empty-
+    # FAQ-answer failure), the section keeps its original text and is flagged
+    # instead — a hedged stat beats a heading with nothing under it.
     in_fence = False
+    section_original: list[str] = []   # lines as generated
+    section_filtered: list[str] = []   # lines after stat removal
+    section_warnings: list[str] = []
+    section_had_prose = False
+    section_heading = "(intro)"
+
+    def _flush_section():
+        nonlocal section_original, section_filtered, section_warnings, section_had_prose
+        filtered_has_prose = any(l.strip() for l in section_filtered)
+        if section_had_prose and not filtered_has_prose:
+            out_lines.extend(section_original)
+            warnings.append(
+                f"Section '{section_heading}' kept despite ungrounded statistics "
+                f"(removal would have emptied it): {'; '.join(w[:80] for w in section_warnings)}"
+            )
+        else:
+            out_lines.extend(section_filtered)
+            warnings.extend(section_warnings)
+        section_original, section_filtered, section_warnings = [], [], []
+        section_had_prose = False
+
     for line in article.split("\n"):
-        if line.lstrip().startswith("```"):
+        is_fence_line = line.lstrip().startswith("```")
+        if is_fence_line:
             in_fence = not in_fence
+        if not in_fence and not is_fence_line and line.lstrip().startswith("#"):
+            _flush_section()
             out_lines.append(line)
+            section_heading = line.lstrip("# ").strip()
             continue
-        # Only police prose — leave headings, code, and audit/meta lines alone.
-        if in_fence or line.lstrip().startswith("#") or line.startswith(("ALT_TAG_AUDIT:", "META_DESCRIPTION:")) or not line.strip():
-            out_lines.append(line)
+        # Only police prose — leave code and audit/meta lines alone.
+        if in_fence or is_fence_line or line.startswith(("ALT_TAG_AUDIT:", "META_DESCRIPTION:")) or not line.strip():
+            section_original.append(line)
+            section_filtered.append(line)
             continue
 
+        section_had_prose = True
+        section_original.append(line)
         sentences = re.split(r"(?<=[.!?])\s+", line)
         kept = []
         for sentence in sentences:
             stats = _STAT_RE.findall(sentence)
             if stats and not all(_stat_grounded(s) for s in stats):
-                warnings.append(f"Removed ungrounded statistic: {sentence.strip()[:140]}")
+                section_warnings.append(f"Removed ungrounded statistic: {sentence.strip()[:140]}")
                 continue
             kept.append(sentence)
         if kept:
-            out_lines.append(" ".join(kept))
+            section_filtered.append(" ".join(kept))
 
+    _flush_section()
     return "\n".join(out_lines), warnings
 
 

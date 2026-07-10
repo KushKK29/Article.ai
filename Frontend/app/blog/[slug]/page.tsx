@@ -287,7 +287,7 @@ export default async function BlogArticlePage({
   }
 
   const title = article.payload?.structure?.h1 || article.payload?.meta?.title || article.topic;
-  const description = buildPublishedArticleDescription(article, title) || article.payload?.meta?.meta_description || `Read ${title} on ArticleShip.`;
+  const description = article.payload?.meta?.meta_description || buildPublishedArticleDescription(article, title) || `Read ${title} on ArticleShip.`;
   const content = normalizePublishedArticleHtml(article.payload?.content || "");
   const recentArticles = await getRecentArticles(slug);
   const tableOfContents = buildTableOfContents(article);

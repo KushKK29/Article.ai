@@ -353,10 +353,14 @@ STRUCTURE RULES:
    CRITICAL — FAQ DEDUPLICATION: The FAQ section heading must cover questions NOT already answered as standalone H2 or H3 headings elsewhere. Scan the full structure before writing the FAQ heading.
 
 6. Keyword placement map:
-   - Primary keyword → H1 and at least one H2
+   - Primary keyword → H1 and EXACTLY ONE H2 verbatim. No other heading may repeat the full primary keyword phrase — use natural variants (repeating the exact phrase across headings reads as spam to Google).
    - Secondary keywords → H2 headings
-   - Long-tail keywords → H3 headings
+   - Long-tail keywords → H3 headings, REPHRASED to read as natural editorial headings. Never paste a raw search query as a heading.
    - LSI keywords → inform H3/H4 topics but need not appear verbatim in headings
+
+6b. NO FIRST-PERSON HEADINGS: Headings must not use "I", "my", or "we" — the article body uses general practitioner framing, and a first-person heading over a third-person section reads as broken. Convert experiential queries to third person:
+   Bad:  "I Spent 50k on AWS GPUs and Realized..."
+   Good: "The $50k AWS GPU Bill That Pushed One Startup to Specialized Clouds"
 
 7. SKIMMABILITY ANCHORS: For each H2, add a skimmability_hook field: a single sentence (max 15 words) that summarises the section's core takeaway.
    REQUIRED: The hook must reflect an actual finding, risk, or outcome — not a generic description of the section. If the search context contains a specific data point or failure mode relevant to this section, use it in the hook.

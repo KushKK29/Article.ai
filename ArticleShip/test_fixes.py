@@ -210,6 +210,44 @@ def test_grounding_enforcement():
     assert len(warnings) >= 3, f"expected warnings for each removal, got: {warnings}"
 
 
+def test_grounding_never_empties_a_section():
+    context = "TITLE: Study\nURL: https://example.com/a\nINSIGHT: Adoption grew 42% overall."
+    article = "\n".join([
+        "## Grounded Section",
+        "Adoption grew 42% according to the data. This part stays.",
+        "",
+        "### How do preemption rates affect TCO?",
+        "Preemption rates hover around 15-20% per day, killing jobs every 5 hours.",
+        "",
+        "## Mixed Section",
+        "Costs dropped 99% overnight. But the workflow itself is what matters.",
+    ])
+    cleaned, warnings = article_builder._ground_generated_article(article, context)
+
+    # The stat-only FAQ answer would have been emptied — must be kept + flagged.
+    assert "15-20%" in cleaned, "section whose removal would empty it must be preserved"
+    assert any("kept despite ungrounded statistics" in w for w in warnings)
+    # Mixed section: ungrounded stat sentence removed, prose survives.
+    assert "99%" not in cleaned
+    assert "the workflow itself is what matters" in cleaned.lower()
+    # Grounded stat untouched.
+    assert "42%" in cleaned
+
+
+def test_block_image_query_prefers_alt_tag():
+    from services.image_fetcher import block_image_query, _result_matches_query
+    block = {
+        "heading": "## Specialized vs Hyperscale GPU Pricing 2026: The TCO Reality Check",
+        "content": "[IMAGE ALT: server racks with NVIDIA GPUs in a data center]\nSome prose.",
+    }
+    assert block_image_query(block) == "server racks with NVIDIA GPUs in a data center"
+    # No alt tag -> falls back to heading-derived query.
+    assert "gpu" in block_image_query({"heading": "## GPU Pricing Basics", "content": "text"})
+    # Relevance gate: a bicycle photo must be rejected for a GPU query.
+    assert not _result_matches_query("server racks nvidia gpus data center", "a black bicycle on a black background")
+    assert _result_matches_query("server racks nvidia gpus data center", "rows of servers in a data center")
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

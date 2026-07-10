@@ -43,6 +43,36 @@ def heading_to_query(heading: str, max_words: int = 5) -> str:
     return " ".join(words[:max_words])
 
 
+# The generator writes [IMAGE ALT: ...] tags as purpose-built image search
+# queries — always prefer them over a query derived from the heading.
+_ALT_TAG_RE = re.compile(r"\[IMAGE ALT:\s*([^\]]+)\]", re.IGNORECASE)
+
+
+def block_image_query(block: Dict[str, Any]) -> str:
+    match = _ALT_TAG_RE.search(block.get("content", "") or "")
+    if match:
+        return match.group(1).strip()
+    return heading_to_query(
+        block.get("heading_text") or block.get("heading", ""), max_words=6
+    )
+
+
+def _result_matches_query(query: str, *descriptions: str) -> bool:
+    """
+    Reject visually unrelated stock results (the 'bicycle on a GPU article'
+    failure): the photo's own description must share at least one meaningful
+    token with the query.
+    """
+    query_tokens = {w for w in re.sub(r"[^\w\s]", "", query.lower()).split()
+                    if w not in STOPWORDS and len(w) > 2}
+    if not query_tokens:
+        return True
+    desc_text = " ".join(d for d in descriptions if d).lower()
+    if not desc_text.strip():
+        return True  # no metadata to judge by — accept rather than starve
+    return any(token in desc_text for token in query_tokens)
+
+
 def _has_tool_mention(block: Dict[str, Any]) -> bool:
     """
     Check both heading AND content for tool names.
@@ -85,8 +115,10 @@ async def fetch_unsplash_image(client: httpx.AsyncClient, query: str) -> Dict[st
         logger.warning("UNSPLASH_ACCESS_KEY not set.")
         return {**_EMPTY_IMAGE, "alt": query}
 
-    # Try the full query first, then a shorter fallback if nothing comes back
-    queries_to_try = [query, " ".join(query.split()[:2])]
+    # Try the full query first, then a shorter fallback if nothing comes back.
+    # The broader query keeps 3 words — a 2-word cut ("specialized hyperscale")
+    # loses the subject noun and matches absurd photos.
+    queries_to_try = [query, " ".join(query.split()[:3])]
 
     for attempt_query in queries_to_try:
         try:
@@ -94,7 +126,7 @@ async def fetch_unsplash_image(client: httpx.AsyncClient, query: str) -> Dict[st
                 "https://api.unsplash.com/search/photos",
                 params={
                     "query": attempt_query,
-                    "per_page": 1,
+                    "per_page": 3,
                     "orientation": "landscape",
                     "content_filter": "high",
                 },
@@ -102,8 +134,17 @@ async def fetch_unsplash_image(client: httpx.AsyncClient, query: str) -> Dict[st
             )
             r.raise_for_status()
             results = r.json().get("results", [])
-            if results:
-                img = results[0]
+            for img in results:
+                tag_titles = " ".join(t.get("title", "") for t in img.get("tags", []) if isinstance(t, dict))
+                if not _result_matches_query(
+                    query,
+                    img.get("alt_description") or "",
+                    img.get("description") or "",
+                    tag_titles,
+                ):
+                    logger.info("Unsplash: rejected off-topic result for '%s' (%s)",
+                                attempt_query, (img.get("alt_description") or "")[:60])
+                    continue
                 return {
                     "url": img["urls"]["regular"],
                     "alt": img.get("alt_description") or attempt_query,
@@ -111,7 +152,7 @@ async def fetch_unsplash_image(client: httpx.AsyncClient, query: str) -> Dict[st
                     "credit": img["user"]["name"],
                     "credit_url": img["user"]["links"]["html"],
                 }
-            logger.info("Unsplash: no results for '%s', trying broader query.", attempt_query)
+            logger.info("Unsplash: no relevant results for '%s', trying broader query.", attempt_query)
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
                 logger.error("Unsplash API 403 Forbidden: %s (likely Rate Limit Exceeded or Invalid Access Key) for '%s'", e.response.text, attempt_query)
@@ -168,7 +209,10 @@ async def fetch_google_image(client: httpx.AsyncClient, query: str) -> Dict[str,
 
 async def fetch_pollen_image(client: httpx.AsyncClient, query: str) -> Dict[str, Any]:
     """
-    Generate an AI image using Pollinations.ai (no API key required)
+    Generate an AI image using Pollinations.ai (no API key required).
+    The URL is fetched once before embedding: this both verifies it renders
+    (no more 'Image credit: AI Generated' captions above a broken image) and
+    warms Pollinations' cache so readers don't hit generation latency.
     """
 
     prompt = (
@@ -178,6 +222,15 @@ async def fetch_pollen_image(client: httpx.AsyncClient, query: str) -> Dict[str,
 
     try:
         url = f"https://image.pollinations.ai/prompt/{prompt.replace(' ', '%20')}"
+
+        async with _AI_SEMAPHORE:
+            r = await client.get(url, timeout=httpx.Timeout(60.0, connect=10.0))
+        if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
+            logger.warning(
+                "Pollinations returned non-image (status %s, type %s) for '%s'; skipping.",
+                r.status_code, r.headers.get("content-type"), query,
+            )
+            return {**_EMPTY_IMAGE, "alt": query}
 
         return {
             "url": url,
@@ -213,9 +266,7 @@ async def process_single_block(
 
     if source == "google":
         # Tool/product blocks → always Google
-        query = heading_to_query(
-            block.get("heading_text") or block.get("heading", ""), max_words=6
-        )
+        query = block_image_query(block)
         image_data = await fetch_google_image(client, query)
         # Fallback to Unsplash if Google Search fails or keys are missing
         if not image_data.get("url"):
@@ -223,7 +274,7 @@ async def process_single_block(
             image_data = await fetch_unsplash_image(client, query)
     else:
         # Hero/concept blocks → Pollen AI or Unsplash
-        query = heading_to_query(block.get("heading_text") or block.get("heading", ""))
+        query = block_image_query(block)
         if ai_generated:
             image_data = await fetch_pollen_image(client, query)
             # Graceful fallback: if AI fails, try Unsplash
