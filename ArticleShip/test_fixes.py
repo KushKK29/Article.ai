@@ -57,6 +57,36 @@ def test_generate_json_truncation_retry():
     assert seen_limits == [1024, 2048], f"expected doubled retry limit, got {seen_limits}"
 
 
+def test_transient_503_retry():
+    client = _make_client()
+    calls = []
+
+    class Overloaded(Exception):
+        code = 503
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise Overloaded("model overloaded")
+        return "ok"
+
+    assert client._call_with_retry(flaky, base_delay=0) == "ok"
+    assert len(calls) == 3, f"expected 2 retries then success, got {len(calls)} calls"
+
+    class Fatal(Exception):
+        code = 400  # non-retryable
+
+    def always_fatal():
+        raise Fatal("bad request")
+
+    try:
+        client._call_with_retry(always_fatal, base_delay=0)
+    except Fatal:
+        pass
+    else:
+        raise AssertionError("non-retryable errors must propagate immediately")
+
+
 def test_generate_json_raises_after_exhausted_retries():
     client = _make_client()
     client.generate = lambda *a, **k: LLMResponse('{"broken', "MAX_TOKENS")

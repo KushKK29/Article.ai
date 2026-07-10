@@ -21,6 +21,7 @@ Provider docs / model catalogs:
 import os
 import re
 import json
+import time
 import logging
 from google import genai
 from google.genai import types
@@ -75,6 +76,26 @@ class LLMClient:
         else:
             self._client = OpenAI(api_key=api_key, base_url=cfg["base_url"])
 
+    def _call_with_retry(self, fn, attempts: int = 3, base_delay: float = 30):
+        """
+        Retry transient provider errors (429 rate limit / 503 overloaded) with
+        linear backoff, so a short Gemini demand spike doesn't fail a whole job.
+        Both google-genai (.code) and openai (.status_code) errors are covered.
+        """
+        for attempt in range(attempts):
+            try:
+                return fn()
+            except Exception as e:
+                code = getattr(e, "code", None) or getattr(e, "status_code", None)
+                if code not in (429, 503) or attempt == attempts - 1:
+                    raise
+                delay = base_delay * (attempt + 1)
+                logger.warning(
+                    "LLM provider returned %s (attempt %d/%d); retrying in %.0fs.",
+                    code, attempt + 1, attempts, delay,
+                )
+                time.sleep(delay)
+
     def generate(
         self,
         prompt: str,
@@ -93,11 +114,11 @@ class LLMClient:
             if json_mode:
                 config_kwargs["response_mime_type"] = "application/json"
 
-            response = self._client.models.generate_content(
+            response = self._call_with_retry(lambda: self._client.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=types.GenerateContentConfig(**config_kwargs),
-            )
+            ))
             finish_reason = ""
             if response.candidates:
                 finish_reason = str(response.candidates[0].finish_reason or "")
@@ -110,12 +131,12 @@ class LLMClient:
         if json_mode:
             completion_kwargs["response_format"] = {"type": "json_object"}
 
-        completion = self._client.chat.completions.create(
+        completion = self._call_with_retry(lambda: self._client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=temperature,
             **completion_kwargs,
-        )
+        ))
         choice = completion.choices[0]
         return LLMResponse(choice.message.content or "", choice.finish_reason or "")
 
