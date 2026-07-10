@@ -87,6 +87,49 @@ def test_transient_503_retry():
         raise AssertionError("non-retryable errors must propagate immediately")
 
 
+def test_fallback_chain_on_transient_failure():
+    from services import llm_client as lc
+
+    client = _make_client()
+
+    class Overloaded(Exception):
+        code = 503
+
+    def broken_raw(prompt, **kwargs):
+        raise Overloaded("gemini down")
+
+    client._generate_raw = broken_raw
+
+    class FakeFallback:
+        def __init__(self, provider, fails):
+            self.provider, self.model, self.fails = provider, f"{provider}-model", fails
+        def _generate_raw(self, prompt, **kwargs):
+            if self.fails:
+                raise Overloaded(f"{self.provider} down too")
+            return LLMResponse(f"from {self.provider}", "stop")
+
+    orig = lc._fallback_clients
+    # First fallback (qwen) also down -> chain must continue to openrouter.
+    lc._fallback_clients = [FakeFallback("qwen", fails=True), FakeFallback("openrouter", fails=False)]
+    try:
+        assert client.generate("prompt").text == "from openrouter"
+
+        # Non-transient errors must NOT fall back.
+        class BadRequest(Exception):
+            code = 400
+        def fatal_raw(prompt, **kwargs):
+            raise BadRequest("bad prompt")
+        client._generate_raw = fatal_raw
+        try:
+            client.generate("prompt")
+        except BadRequest:
+            pass
+        else:
+            raise AssertionError("400 errors must propagate, not fall back")
+    finally:
+        lc._fallback_clients = orig
+
+
 def test_generate_json_raises_after_exhausted_retries():
     client = _make_client()
     client.generate = lambda *a, **k: LLMResponse('{"broken', "MAX_TOKENS")

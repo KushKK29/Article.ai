@@ -42,6 +42,12 @@ PROVIDER_CONFIG = {
         "api_key_env": "NVIDIA_API_KEY",
         "base_url": "https://integrate.api.nvidia.com/v1",
     },
+    "qwen": {
+        "api_key_env": "QWEN_API_KEY",
+        # DashScope OpenAI-compatible endpoint (international). Override with
+        # QWEN_BASE_URL if your key is for the mainland-China region.
+        "base_url": os.getenv("QWEN_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"),
+    },
 }
 
 
@@ -54,6 +60,38 @@ class LLMResponse:
     def truncated(self) -> bool:
         """True when the model stopped because it hit the output-token limit."""
         return "MAX_TOKENS" in self.finish_reason.upper() or self.finish_reason == "length"
+
+
+def default_model_for(provider: str) -> str:
+    return {
+        "gemini": "gemini-3-flash-preview",
+        "qwen": os.getenv("QWEN_MODEL", "qwen-plus"),
+        # openrouter/free auto-routes to whichever free models are live,
+        # filtering for JSON/structured-output support per request.
+        "openrouter": os.getenv("OPENROUTER_MODEL", "openrouter/free"),
+        "nvidia": os.getenv("NVIDIA_MODEL", "moonshotai/kimi-k2.6"),
+    }.get(provider, "")
+
+
+# Fallback chain, built lazily from whichever provider keys are configured.
+# Order: OpenRouter -> NVIDIA -> Qwen. None = not yet resolved.
+_fallback_clients: "list[LLMClient] | None" = None
+
+
+def _get_fallback_clients() -> "list[LLMClient]":
+    global _fallback_clients
+    if _fallback_clients is None:
+        clients = []
+        for provider in ("openrouter", "nvidia", "qwen"):
+            if os.getenv(PROVIDER_CONFIG[provider]["api_key_env"]):
+                clients.append(LLMClient(provider, default_model_for(provider)))
+        _fallback_clients = clients
+        if clients:
+            logger.info(
+                "LLM fallback chain: %s",
+                " -> ".join(f"{c.provider}/{c.model}" for c in clients),
+            )
+    return _fallback_clients
 
 
 class LLMClient:
@@ -105,7 +143,56 @@ class LLMClient:
         max_output_tokens: int | None = None,
         json_mode: bool = False,
     ) -> LLMResponse:
+        """
+        Generate with the primary provider; on exhausted transient/server
+        errors (429/5xx), walk the fallback chain (OpenRouter -> NVIDIA ->
+        Qwen — whichever have API keys configured).
+        """
+        try:
+            return self._generate_raw(
+                prompt, model=model, temperature=temperature,
+                max_output_tokens=max_output_tokens, json_mode=json_mode,
+            )
+        except Exception as e:
+            code = getattr(e, "code", None) or getattr(e, "status_code", None)
+            if code not in (429, 500, 502, 503):
+                raise
+            last_error: Exception = e
+            for fallback in _get_fallback_clients():
+                if fallback.provider == self.provider:
+                    continue
+                logger.warning(
+                    "Provider '%s' failed with %s; falling back to %s/%s.",
+                    self.provider, code, fallback.provider, fallback.model,
+                )
+                try:
+                    return fallback._generate_raw(
+                        prompt, temperature=temperature,
+                        max_output_tokens=max_output_tokens, json_mode=json_mode,
+                    )
+                except Exception as fallback_error:
+                    logger.warning(
+                        "Fallback %s/%s failed: %s",
+                        fallback.provider, fallback.model, fallback_error,
+                    )
+                    last_error = fallback_error
+            raise last_error
+
+    def _generate_raw(
+        self,
+        prompt: str,
+        *,
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_output_tokens: int | None = None,
+        json_mode: bool = False,
+    ) -> LLMResponse:
         model = model or self.model
+
+        if self.provider == "qwen" and max_output_tokens is not None:
+            # ponytail: DashScope caps output at 8192 for qwen-plus/max;
+            # clamp instead of erroring the fallback call.
+            max_output_tokens = min(max_output_tokens, 8192)
 
         if self.provider == "gemini":
             config_kwargs = {"temperature": temperature, "candidate_count": 1}

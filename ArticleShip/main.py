@@ -363,6 +363,46 @@ async def build_article(request: ArticleRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/llm-test", tags=["Debug"])
+async def llm_test(provider: str = Query(...), model: str | None = None):
+    """
+    Debug: fire a tiny prompt at one specific provider (no fallback), so each
+    fallback provider/key can be verified in isolation.
+    e.g. /api/v1/llm-test?provider=qwen
+    """
+    import time
+    from services.llm_client import LLMClient, PROVIDER_CONFIG, default_model_for
+
+    if provider not in PROVIDER_CONFIG:
+        raise HTTPException(status_code=400, detail=f"Unknown provider. Choose one of: {list(PROVIDER_CONFIG)}")
+
+    resolved_model = model or default_model_for(provider)
+    started = time.time()
+    try:
+        client = LLMClient(provider, resolved_model)
+        response = await asyncio.to_thread(
+            client._generate_raw,
+            "Reply with exactly the two characters: OK",
+            max_output_tokens=500,
+        )
+        return {
+            "ok": bool(response.text.strip()),
+            "provider": provider,
+            "model": resolved_model,
+            "latency_ms": round((time.time() - started) * 1000),
+            "text": response.text.strip()[:200],
+            "finish_reason": response.finish_reason,
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "provider": provider,
+            "model": resolved_model,
+            "latency_ms": round((time.time() - started) * 1000),
+            "error": str(e)[:500],
+        }
+
+
 @app.post("/api/v1/article-context", tags=["Debug"])
 async def get_article_context(request: TopicRequest):
     """
