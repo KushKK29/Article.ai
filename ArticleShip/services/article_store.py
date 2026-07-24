@@ -203,7 +203,7 @@ def _decode_article_from_storage(article: Dict[str, Any] | None) -> Dict[str, An
     return decoded_article
 
 
-def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def save_article(topic: str, payload: Dict[str, Any], user_id: str | None = None) -> Dict[str, Any]:
     collection = _get_collection()
     stored_payload = _encode_payload_for_storage(payload)
 
@@ -213,6 +213,7 @@ def save_article(topic: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 
     article = {
         "id": uuid4().hex,
+        "user_id": user_id,
         "topic": topic,
         "category": category,
         "createdAt": _utc_now_iso(),
@@ -235,13 +236,15 @@ def get_article_by_id(article_id: str) -> Dict[str, Any] | None:
     return _decode_article_from_storage(article)
 
 
-def list_articles(slug: str | None = None, status: str | None = None) -> List[Dict[str, Any]]:
+def list_articles(slug: str | None = None, status: str | None = None, user_id: str | None = None) -> List[Dict[str, Any]]:
     collection = _get_collection()
     query: Dict[str, Any] = {}
     if slug:
         query["slug"] = slug
     if status:
         query["status"] = status
+    if user_id:
+        query["user_id"] = user_id
     docs = list(collection.find(query, {"_id": 0}).sort("createdAt", -1))
     return [
         _decode_article_from_storage(doc) or doc

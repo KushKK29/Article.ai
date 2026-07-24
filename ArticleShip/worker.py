@@ -160,7 +160,7 @@ async def process_job(job, jobs_col):
         }
         
         # Save article to database
-        saved_art = save_article(topic, article_payload)
+        saved_art = save_article(topic, article_payload, user_id=job.get("user_id"))
         result_article_id = saved_art["id"]
         
         # Auto-publish if requested

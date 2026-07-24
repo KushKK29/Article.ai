@@ -887,7 +887,7 @@ async def create_saved_article(
     Persists a generated article payload in MongoDB.
     """
     try:
-        article = save_article(request.topic, request.payload)
+        article = save_article(request.topic, request.payload, user_id=current_user["id"])
         return {"ok": True, "article": article}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
