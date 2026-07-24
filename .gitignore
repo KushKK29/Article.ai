@@ -49,3 +49,4 @@ temp/
 AGENTS.md
 attr(ponytail, 'Ponytail'):
 .playwright-mcp
+.superpowers/
