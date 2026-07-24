@@ -1,4 +1,4 @@
-# Per-User Ledger, Free-Tier Cap, Admin, and Support Impersonation
+# Per-User Ledger, Free-Tier Cap, Admin, Support Impersonation, and Galley Proof Leak
 
 Date: 2026-07-25
 
@@ -10,6 +10,7 @@ Several access-control gaps exist in ArticleShip today:
 2. There's no admin/privileged-account concept anywhere in the backend.
 3. There's no way for the internal support team to log in as a user to help debug/support them.
 4. The manuscript archive (`GET /api/v1/articles`, backing `Frontend/app/articles/page.tsx`) returns **every** user's saved articles to **any** logged-in user — a genuine cross-tenant data leak. Articles have no `user_id` field at all today.
+5. The galley proof page (`Frontend/app/blog/[slug]/page.tsx`, public blog view at `/blog/[slug]`) fetches `GET /api/v1/articles?slug=X` with **no auth at all** — by design, since it's meant to be a public blog page for published posts. The bug: it returns the article regardless of `status`, so **draft/unpublished articles are also exposed to anyone who has or guesses the slug**, no login and no ownership check required.
 
 The account ledger (usage/credits/job history shown on `Frontend/app/account/page.tsx`) is **already correctly per-user** — `usage.completed_jobs` and `/api/jobs` are scoped by `user_id` today. No fix needed there beyond updating the displayed free-tier number.
 
@@ -82,7 +83,40 @@ Note: need to confirm whether the JWT payload carries `email` directly or only `
 
 **Result**: free/pro/agency users all see only their own articles (mirrors the existing `jobs`/`batches` pattern exactly). Only `kush282930@gmail.com` retains the unfiltered view.
 
-### 4. Support impersonation
+### 4. Galley proof: stop leaking drafts publicly
+
+Root cause is one function: `get_article_by_slug()` (`ArticleShip/services/article_store.py:293-296`), currently `collection.find_one({"slug": slug})` — no `status` filter. It's called from `main.py:891-924`'s `?slug=` branch, which has no auth check at all today (intentional for the public-blog case, but too broad).
+
+Fix, in the `main.py:891` handler's `slug` branch:
+
+```python
+if slug:
+    article = get_article_by_slug(slug)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if article.get("status") != "published":
+        # not public — require auth and ownership/admin
+        auth_header = request.headers.get("authorization") if request else None
+        if not auth_header or not auth_header.lower().startswith("bearer "):
+            raise HTTPException(status_code=404, detail="Article not found")
+        token = auth_header.split(" ", 1)[1]
+        payload = decode_token(token)
+        if payload.get("type") != "access" or not payload.get("sub"):
+            raise HTTPException(status_code=404, detail="Article not found")
+        requester = users_col.find_one({"id": payload["sub"]})
+        is_owner = requester and article.get("user_id") == requester["id"]
+        is_admin = requester and requester["email"] in ADMIN_EMAILS
+        if not (is_owner or is_admin):
+            raise HTTPException(status_code=404, detail="Article not found")
+    return {"article": article}
+```
+
+- Published articles: unchanged, still public, no auth — this is the correct/intended blog behavior.
+- Draft articles: 404 (not 403 — avoids confirming a draft exists at all under a guessed slug) unless the requester is the owner or admin.
+- Depends on the same `user_id` field being added to article documents in section 3 above — an unowned legacy draft (no `user_id`) will 404 for everyone except admin, consistent with the "leave legacy articles admin-only" decision already made for the archive.
+- The "Recently Published" sidebar query (`?status=published`, `main.py:911`) is unaffected — it already only returns published articles.
+
+### 5. Support impersonation
 
 **Backend** — new route `POST /api/v1/auth/impersonate`:
 
@@ -122,3 +156,4 @@ Per-file minimal checks (ponytail: smallest thing that fails if the logic breaks
 - Free-tier cap: assert a free user with `completed_jobs=5` is rejected (402) and admin with `completed_jobs=5` is not.
 - Archive scoping: assert `list_articles(user_id=X)` only returns docs with `user_id=X`; assert unfiltered call still returns all.
 - Impersonation: assert non-privileged caller gets 403; assert privileged caller gets a token whose `sub` matches the target user's id.
+- Galley proof: assert a published article's slug returns 200 with no auth header; assert a draft's slug returns 404 with no auth header and 404 for a non-owner's token; assert 200 for the owner's token or an admin's token.
