@@ -24,6 +24,7 @@ from services.auth import (
     create_user, get_user_by_email, verify_password, get_current_user,
     create_access_token, create_refresh_token, decode_token, REFRESH_TOKEN_EXPIRE_DAYS,
 )
+from services.privileges import over_free_tier_limit, is_admin, is_privileged, PRIVILEGED_EMAILS
 
 
 
@@ -513,6 +514,11 @@ async def generate_full_article_hybrid_html(
     Enqueues a background job to generate a full article with hybrid HTML.
     """
     try:
+        if over_free_tier_limit(current_user):
+            raise HTTPException(
+                status_code=402,
+                detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
+            )
         from uuid import uuid4
         job_id = uuid4().hex
         jobs_col = get_jobs_collection()
@@ -535,6 +541,8 @@ async def generate_full_article_hybrid_html(
         }
         jobs_col.insert_one(job_doc)
         return {"job_id": job_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -573,6 +581,11 @@ async def schedule_article(
     Authenticated users can only schedule articles for themselves.
     """
     try:
+        if over_free_tier_limit(current_user):
+            raise HTTPException(
+                status_code=402,
+                detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
+            )
         from uuid import uuid4
         job_id = uuid4().hex
         jobs_col = get_jobs_collection()
@@ -598,6 +611,8 @@ async def schedule_article(
         }
         jobs_col.insert_one(job_doc)
         return {"job_id": job_id}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
