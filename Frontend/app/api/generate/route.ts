@@ -79,12 +79,15 @@ export async function POST(request: NextRequest) {
 
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
+      let detail = errorText;
+      try {
+        detail = JSON.parse(errorText).detail ?? errorText;
+      } catch {
+        // not JSON, keep raw text
+      }
       return NextResponse.json(
-        {
-          error: "Backend generation failed",
-          details: errorText
-        },
-        { status: 502 }
+        { error: detail },
+        { status: backendResponse.status }
       );
     }
 

@@ -479,6 +479,12 @@ function HomePageContent() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({ error: "Generation failed" }));
+        if (response.status === 402) {
+          addToast("error", "Free tier limit reached", "Upgrade your plan to keep generating articles.");
+          router.push("/pricing");
+          setLoading(false);
+          return;
+        }
         throw new Error(errorPayload.error || "Generation failed");
       }
 
