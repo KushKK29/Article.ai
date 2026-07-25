@@ -79,6 +79,12 @@ class VerifyOtpRequest(BaseModel):
     otp: str
 
 
+class ContactFormRequest(BaseModel):
+    subject: str
+    body: str
+    reply_to: EmailStr
+
+
 @app.get("/", tags=["Health"])
 async def root_health():
     return {"status": "ok", "service": "ArticleShip API"}
@@ -275,6 +281,31 @@ async def search(q: str = Query(...), count: int = 10):
     if results.get("error"):
         raise HTTPException(status_code=502, detail=results["error"])
     return results
+
+
+@app.post("/api/email/contact", tags=["Email"])
+async def send_contact_email(request: ContactFormRequest):
+    """
+    Internal endpoint: sends contact form submissions to support@articleship.com.
+    Hardcoded recipient prevents email relay attacks; reply_to allows sender responses.
+    """
+    try:
+        support_email = os.getenv("SUPPORT_EMAIL", "support@articleship.com")
+        send_email(
+            support_email,
+            request.subject,
+            request.body + f"\n\nReply to: {request.reply_to}"
+        )
+        # Send confirmation to user
+        send_email(
+            request.reply_to,
+            "We received your message",
+            "Thank you for contacting ArticleShip. We'll respond within 24 hours."
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Contact form submission failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to send message")
 
 
 
