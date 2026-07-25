@@ -18,7 +18,7 @@ import { useAuth } from "./AuthContext";
 import { getBackendBaseUrl } from "./backend";
 
 export function useAuthFetch() {
-  const { getToken, logout } = useAuth();
+  const { getToken, logout, isImpersonating } = useAuth();
 
   const authFetch = useCallback(
     async (url: string, init: RequestInit = {}): Promise<Response> => {
@@ -31,6 +31,14 @@ export function useAuthFetch() {
 
       // Silent refresh on 401
       if (res.status === 401) {
+        // While impersonating, /auth/refresh would use the support/admin's
+        // own cookie and silently swap the session back to them. End the
+        // session instead of refreshing into the wrong account.
+        if (isImpersonating()) {
+          await logout();
+          return res;
+        }
+
         const refreshRes = await fetch(
           `${getBackendBaseUrl()}/api/v1/auth/refresh`,
           { method: "POST", credentials: "include" }
@@ -53,7 +61,7 @@ export function useAuthFetch() {
 
       return res;
     },
-    [getToken, logout]
+    [getToken, logout, isImpersonating]
   );
 
   return authFetch;

@@ -36,6 +36,8 @@ interface AuthState {
   getToken: () => Promise<string | null>;
   /** Applies an externally-obtained token/user pair (used by support impersonation). */
   applyToken: (token: string, user: AuthUser) => void;
+  /** True while an impersonated session is active — callers should not silently refresh. */
+  isImpersonating: () => boolean;
 }
 
 import { getBackendBaseUrl } from "./backend";
@@ -62,8 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = accessToken;
 
+  // Impersonation flag: while true, nobody may silently call /auth/refresh —
+  // that endpoint reads the support/admin's own httpOnly cookie and would
+  // revert the session back to them mid-impersonation.
+  // ponytail: single ref threaded through, not a general session-mode abstraction.
+  const impersonatingRef = useRef(false);
+  const isImpersonating = useCallback(() => impersonatingRef.current, []);
+
   // ── try to restore session from the refresh-cookie on mount ──────────────
   useEffect(() => {
+    if (impersonatingRef.current) return; // never reachable today (mount runs once, pre-impersonation) — guarded anyway
     (async () => {
       try {
         // 1) try refreshing silently
@@ -102,6 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (expiresInSec > 60) return tokenRef.current; // still valid
 
+      // While impersonating, refreshing would use the support/admin's own
+      // cookie and silently swap the session back to them. Let it expire
+      // instead — the next request will 401 and useAuthFetch will log out.
+      if (impersonatingRef.current) return tokenRef.current;
+
       // Proactively refresh when < 60 s left
       const res = await apiFetch("/api/v1/auth/refresh", { method: "POST" });
       if (res.ok) {
@@ -125,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail ?? "Login failed");
+    impersonatingRef.current = false;
     setAccessToken(data.access_token);
     tokenRef.current = data.access_token;
     setUser(data.user);
@@ -146,6 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ── logout ────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     await apiFetch("/api/v1/auth/logout", { method: "POST" });
+    impersonatingRef.current = false;
     setAccessToken(null);
     tokenRef.current = null;
     setUser(null);
@@ -153,13 +170,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // ── applyToken (used by impersonation: apply an externally-obtained token/user pair) ──
   const applyToken = useCallback((token: string, impersonatedUser: AuthUser) => {
+    impersonatingRef.current = true;
     setAccessToken(token);
     tokenRef.current = token;
     setUser(impersonatedUser);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, logout, getToken, applyToken }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, logout, getToken, applyToken, isImpersonating }}>
       {children}
     </AuthContext.Provider>
   );

@@ -33,8 +33,15 @@ function ImpersonationPanel() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Impersonation failed");
+      // No navigation — we're already on the target real, auth-wired page.
+      // applyToken updates AuthContext's in-memory accessToken/user; this
+      // stays a client-side state update (no window.location reload), so
+      // AuthProvider never remounts and never re-triggers its mount-effect
+      // refresh (which would read the support/admin's own httpOnly cookie
+      // and revert the session back to them). ArticlesPageContent's article
+      // fetch effect depends on accessToken, so it refetches automatically
+      // with the impersonated user's token.
       applyToken(data.access_token, data.user);
-      window.location.href = "/account";
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impersonation failed");
     } finally {
@@ -76,6 +83,7 @@ export default function ArticlesPage() {
 
 function ArticlesPageContent() {
   const authFetch = useAuthFetch();
+  const { accessToken } = useAuth();
   const [articles, setArticles] = useState<SavedArticleRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -88,6 +96,7 @@ function ArticlesPageContent() {
 
   useEffect(() => {
     async function loadArticles() {
+      setLoading(true);
       try {
         const res = await authFetch("/api/articles");
         if (!res.ok) throw new Error("Failed to load");
@@ -100,7 +109,10 @@ function ArticlesPageContent() {
       }
     }
     loadArticles();
-  }, []);
+    // Re-fetch when the access token identity changes (e.g. support
+    // impersonation swaps in a different user's token) so the list reflects
+    // whoever is currently "logged in" without needing a full page reload.
+  }, [accessToken]);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
