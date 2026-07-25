@@ -6,7 +6,6 @@ import { SavedArticleRecord } from "@/components/SavedArticleWorkbench";
 import { useAuthFetch } from "@/lib/useAuthFetch";
 import { useAuth } from "@/lib/AuthContext";
 import { getBackendUrl } from "@/lib/backend";
-import RequireAuth from "@/components/RequireAuth";
 
 const ITEMS_PER_PAGE = 12;
 
@@ -74,11 +73,7 @@ function ImpersonationPanel() {
 }
 
 export default function ArticlesPage() {
-  return (
-    <RequireAuth>
-      <ArticlesPageContent />
-    </RequireAuth>
-  );
+  return <ArticlesPageContent />;
 }
 
 function ArticlesPageContent() {
