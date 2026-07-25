@@ -57,6 +57,9 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class ImpersonateRequest(BaseModel):
+    target_email: EmailStr
+
 
 @app.get("/", tags=["Health"])
 async def root_health():
@@ -156,6 +159,27 @@ async def logout(response: Response):
 async def me(current_user: Dict[str, Any] = Depends(get_current_user)):
     """Return the currently authenticated user profile."""
     return {"user": current_user}
+
+
+@app.post("/api/v1/auth/impersonate", tags=["Auth"])
+async def impersonate_user(
+    body: ImpersonateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Support/admin-only: issue a full-access token for another user's account,
+    for support debugging. Gated by a hardcoded email allowlist (see
+    services/privileges.py) — there is no broader role system.
+    """
+    if not is_privileged(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    target = get_user_by_email(body.target_email)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    token = create_access_token(target["id"], target["email"])
+    safe_user = {k: v for k, v in target.items() if k not in ("hashed_password", "_id", "otp_code", "otp_expires_at", "otp_attempts")}
+    return {"access_token": token, "token_type": "bearer", "user": safe_user}
+
 
 @app.get("/api/v1/search", tags=["Search"])
 async def search(q: str = Query(...), count: int = 10):
