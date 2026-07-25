@@ -7,7 +7,7 @@ import ThemeToggle from "./ThemeToggle";
 import { useAuth } from "@/lib/AuthContext";
 
 const navItems = [
-  { href: "/articles", label: "Galley Proofs" },
+  { href: "/blog", label: "Galley Proofs" },
   { href: "/generate", label: "Manuscript Desk" },
   { href: "/pricing", label: "Ledger Rates" },
   { href: "/contact", label: "Contact" }

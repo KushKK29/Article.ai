@@ -955,35 +955,14 @@ async def get_saved_articles(
     request: Request = None,
 ):
     """
-    Public: returns published articles (for the blog). When a slug is
-    provided the article is returned regardless of auth, but only if it is
-    published — drafts require the owner or admin (see galley-proof check
-    below). Listing anything other than status=published (e.g. drafts, or
-    no filter at all) requires an authenticated caller, and is scoped to
-    that caller's own articles unless they are the admin account.
+    Public: returns all articles (for the blog), no auth required.
     """
     try:
         if slug:
             article = get_article_by_slug(slug)
             if not article:
                 raise HTTPException(status_code=404, detail="Article not found")
-            if article.get("status") != "published":
-                requester = _require_owner_or_admin(request, article)
-                if requester is None:
-                    raise HTTPException(status_code=404, detail="Article not found")
             return {"article": article}
-
-        if status != "published":
-            auth_header = request.headers.get("authorization") if request else None
-            if not auth_header or not auth_header.lower().startswith("bearer "):
-                raise HTTPException(status_code=401, detail="Authentication required to list non-published articles")
-            token = auth_header.split(" ", 1)[1]
-            payload = decode_token(token)
-            if payload.get("type") != "access" or not payload.get("sub"):
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
-            if is_admin(payload.get("email", "")):
-                return {"articles": list_articles(status=status)}
-            return {"articles": list_articles(status=status, user_id=payload["sub"], include_published_from_others=(status is None))}
 
         return {"articles": list_articles(status=status)}
     except HTTPException:
