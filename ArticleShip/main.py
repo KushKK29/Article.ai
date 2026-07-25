@@ -955,7 +955,7 @@ async def get_saved_articles(
     request: Request = None,
 ):
     """
-    Public: returns all articles (for the blog), no auth required.
+    Public: returns all articles, no auth required.
     """
     try:
         if slug:
