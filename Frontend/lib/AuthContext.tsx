@@ -23,6 +23,9 @@ export interface AuthUser {
   id: string;
   email: string;
   created_at: string;
+  tier: "free" | "pro" | "agency";
+  usage: { completed_jobs: number; failed_jobs: number };
+  stripe_current_period_end: string | null;
 }
 
 interface AuthState {
@@ -30,7 +33,10 @@ interface AuthState {
   accessToken: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Registers (or resends a code to) an account. Does NOT log in — call verifyOtp next. */
   signup: (email: string, password: string) => Promise<void>;
+  /** Completes signup with the emailed code and logs the user in. */
+  verifyOtp: (email: string, otp: string) => Promise<void>;
   logout: () => Promise<void>;
   /** Returns a valid (possibly refreshed) access token, or null if unauthenticated. */
   getToken: () => Promise<string | null>;
@@ -147,6 +153,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── signup ────────────────────────────────────────────────────────────────
+  // Registers the account and emails a verification code. Does not log in —
+  // the caller must follow up with verifyOtp() once the user enters the code.
   const signup = useCallback(async (email: string, password: string) => {
     const res = await apiFetch("/api/v1/auth/signup", {
       method: "POST",
@@ -154,6 +162,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail ?? "Signup failed");
+  }, []);
+
+  // ── verifyOtp ────────────────────────────────────────────────────────────
+  const verifyOtp = useCallback(async (email: string, otp: string) => {
+    const res = await apiFetch("/api/v1/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail ?? "Verification failed");
     setAccessToken(data.access_token);
     tokenRef.current = data.access_token;
     setUser(data.user);
@@ -177,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, logout, getToken, applyToken, isImpersonating }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, verifyOtp, logout, getToken, applyToken, isImpersonating }}>
       {children}
     </AuthContext.Provider>
   );

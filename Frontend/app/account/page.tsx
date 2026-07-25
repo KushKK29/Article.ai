@@ -1,16 +1,23 @@
 /**
  * NOTE FOR USER REVIEW:
- * Please verify/confirm the following mock/preset values before launch:
- * 1. Default current plan: Pro Press ($49/mo) (Line 38)
- * 2. Monthly credit limit: 34 / 50 credits remaining (Line 39)
- * 3. Next billing date: July 27, 2026 (Line 40)
- * 4. Stripe customer portal redirection placeholders (Line 115)
+ * Payment method card (brand/last4/expiry) below is still a display mock —
+ * reading it for real requires a new backend endpoint to fetch the Stripe
+ * default payment method, which doesn't exist yet. Everything else on this
+ * page (plan, credit usage, renewal date, run history) is real.
  */
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@/lib/AuthContext";
+import { useAuthFetch } from "@/lib/useAuthFetch";
+
+const TIER_INFO: Record<string, { name: string; price: string; credits: number }> = {
+  free: { name: "Free Sheet", price: "$0/mo", credits: 3 },
+  pro: { name: "Pro Press", price: "$49/mo", credits: 50 },
+  agency: { name: "Agency Master", price: "$149/mo", credits: 200 }
+};
 
 interface CreditUsageLog {
   id: string;
@@ -20,21 +27,50 @@ interface CreditUsageLog {
 }
 
 export default function AccountSettingsPage() {
-  const [plan, setPlan] = useState({
-    name: "Pro Press",
-    price: "$49/mo",
-    creditsUsed: 16,
-    creditsLimit: 50,
-    renewalDate: "2026-07-27"
-  });
+  const { user } = useAuth();
+  const authFetch = useAuthFetch();
+  const [managingBilling, setManagingBilling] = useState(false);
+  const [usageHistory, setUsageHistory] = useState<CreditUsageLog[]>([]);
 
-  const [usageHistory] = useState<CreditUsageLog[]>([
-    { id: "1", topic: "Logarithmic complexity analysis in B-Tree Indexes", date: "2026-06-27", creditsConsumed: 1 },
-    { id: "2", topic: "Introductory VLSI design and layout rules", date: "2026-06-26", creditsConsumed: 1 },
-    { id: "3", topic: "EXIM bank system specifications & syllabus study guides", date: "2026-06-25", creditsConsumed: 1 },
-    { id: "4", topic: "Why corporate burnout left me exhausted", date: "2026-06-24", creditsConsumed: 1 },
-    { id: "5", topic: "Deploying production apps with LLM reasoning nodes", date: "2026-06-22", creditsConsumed: 1 }
-  ]);
+  const tierId = user?.tier ?? "free";
+  const creditsUsed = user?.usage?.completed_jobs ?? 0;
+  const creditsLimit = TIER_INFO[tierId].credits;
+  const renewalDate = user?.stripe_current_period_end ?? null;
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const res = await authFetch("/api/jobs?status=completed", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const jobs: { _id: string; topic: string; completed_at: string | null; created_at: string }[] = data.jobs ?? [];
+      setUsageHistory(
+        jobs.slice(0, 10).map((job) => ({
+          id: job._id,
+          topic: job.topic,
+          date: new Date(job.completed_at ?? job.created_at).toLocaleDateString(),
+          creditsConsumed: 1
+        }))
+      );
+    })();
+  }, [user, authFetch]);
+
+  const handleManageBilling = async () => {
+    setManagingBilling(true);
+    try {
+      const res = await authFetch("/api/billing/portal", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not open billing portal.");
+      window.location.href = data.url;
+    } catch (err) {
+      alert(
+        err instanceof Error
+          ? err.message
+          : "Could not open billing portal. Subscribe to a paid plan first."
+      );
+      setManagingBilling(false);
+    }
+  };
 
   const [paymentMethod] = useState({
     brand: "Visa",
@@ -64,8 +100,11 @@ export default function AccountSettingsPage() {
               <div className="flex justify-between items-start border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-4">
                 <div>
                   <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-[#1D4ED8] bg-[var(--highlight)] border border-[#0B132B]/20 px-2 py-0.5 inline-block">Active Plan</span>
-                  <h2 className="text-2xl font-extrabold mt-2">{plan.name}</h2>
-                  <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">{plan.price} • Renews on {new Date(plan.renewalDate).toLocaleDateString()}</p>
+                  <h2 className="text-2xl font-extrabold mt-2">{TIER_INFO[tierId].name}</h2>
+                  <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">
+                    {TIER_INFO[tierId].price}
+                    {tierId !== "free" && renewalDate && <> • Renews on {new Date(renewalDate).toLocaleDateString()}</>}
+                  </p>
                 </div>
                 <Link 
                   href="/pricing" 
@@ -79,17 +118,19 @@ export default function AccountSettingsPage() {
               <div className="space-y-3">
                 <div className="flex justify-between font-mono text-[10px] uppercase tracking-wider font-bold">
                   <span>Manuscript Run Balance</span>
-                  <span>{plan.creditsLimit - plan.creditsUsed} / {plan.creditsLimit} Runs Remaining</span>
+                  <span>{Math.max(creditsLimit - creditsUsed, 0)} / {creditsLimit} Runs Remaining</span>
                 </div>
                 {/* Visual Ledger Progress Bar */}
                 <div className="w-full bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_25%,transparent)] h-4 p-[2px]">
-                  <div 
+                  <div
                     className="bg-[var(--accent)] h-full transition-all"
-                    style={{ width: `${((plan.creditsLimit - plan.creditsUsed) / plan.creditsLimit) * 100}%` }}
+                    style={{ width: `${Math.min((creditsUsed / creditsLimit) * 100, 100)}%` }}
                   />
                 </div>
                 <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed">
-                  Your monthly quota resets to {plan.creditsLimit} runs on {new Date(plan.renewalDate).toLocaleDateString()}. Unused runs do not roll over.
+                  {tierId === "free" || !renewalDate
+                    ? `Your plan includes ${creditsLimit} manuscript runs.`
+                    : `Your monthly quota resets to ${creditsLimit} runs on ${new Date(renewalDate).toLocaleDateString()}. Unused runs do not roll over.`}
                 </p>
               </div>
             </div>
@@ -98,15 +139,19 @@ export default function AccountSettingsPage() {
             <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)] space-y-4">
               <h3 className="text-lg font-extrabold border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">Manuscript Run Registry</h3>
               <div className="divide-y divide-[color-mix(in_srgb,var(--ink)_10%,transparent)] font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
-                {usageHistory.map((log) => (
-                  <div key={log.id} className="py-3 flex justify-between items-center gap-4">
-                    <div className="truncate">
-                      <span className="text-[var(--ink)] font-bold block truncate">{log.topic}</span>
-                      <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">{log.date}</span>
+                {usageHistory.length === 0 ? (
+                  <p className="py-3">No completed manuscript runs yet.</p>
+                ) : (
+                  usageHistory.map((log) => (
+                    <div key={log.id} className="py-3 flex justify-between items-center gap-4">
+                      <div className="truncate">
+                        <span className="text-[var(--ink)] font-bold block truncate">{log.topic}</span>
+                        <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">{log.date}</span>
+                      </div>
+                      <span className="font-bold text-[var(--accent)] flex-shrink-0">-{log.creditsConsumed} Run</span>
                     </div>
-                    <span className="font-bold text-[var(--accent)] flex-shrink-0">-{log.creditsConsumed} Run</span>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -116,16 +161,28 @@ export default function AccountSettingsPage() {
             <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 shadow-[3px_3px_0px_var(--press-dark)] space-y-4">
               <h3 className="text-sm font-extrabold font-serif border-b border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pb-2">Payment Method</h3>
               <div className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)] space-y-2">
-                <div className="flex justify-between items-center bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] p-3">
-                  <span>{paymentMethod.brand} •••• {paymentMethod.last4}</span>
-                  <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">Exp: {paymentMethod.expiry}</span>
-                </div>
-                <button 
-                  onClick={() => alert("Redirecting to secured payment gateway portal...")}
-                  className="w-full text-center py-2.5 bg-[var(--plate)] border border-[var(--ink)] text-[var(--ink)] font-bold hover:bg-[var(--paper)] transition-all"
-                >
-                  Update Card
-                </button>
+                {tierId !== "free" && (
+                  <div className="flex justify-between items-center bg-[var(--paper)] border border-[color-mix(in_srgb,var(--ink)_10%,transparent)] p-3">
+                    <span>{paymentMethod.brand} •••• {paymentMethod.last4}</span>
+                    <span className="text-[9px] text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">Exp: {paymentMethod.expiry}</span>
+                  </div>
+                )}
+                {tierId === "free" ? (
+                  <Link
+                    href="/pricing"
+                    className="block w-full text-center py-2.5 bg-[var(--plate)] border border-[var(--ink)] text-[var(--ink)] font-bold hover:bg-[var(--paper)] transition-all"
+                  >
+                    Subscribe to a Plan
+                  </Link>
+                ) : (
+                  <button
+                    onClick={handleManageBilling}
+                    disabled={managingBilling}
+                    className="w-full text-center py-2.5 bg-[var(--plate)] border border-[var(--ink)] text-[var(--ink)] font-bold hover:bg-[var(--paper)] transition-all disabled:opacity-60"
+                  >
+                    {managingBilling ? "Redirecting…" : "Manage Billing"}
+                  </button>
+                )}
               </div>
             </div>
 

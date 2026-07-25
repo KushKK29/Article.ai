@@ -60,8 +60,9 @@ def block_image_query(block: Dict[str, Any]) -> str:
 def _result_matches_query(query: str, *descriptions: str) -> bool:
     """
     Reject visually unrelated stock results (the 'bicycle on a GPU article'
-    failure): the photo's own description must share at least one meaningful
-    token with the query.
+    failure): the photo's own description must share meaningful tokens with
+    the query. Rich queries (4+ tokens) need 2 matches — a single shared word
+    like "remote" matches TV remotes on a remote-work article (polysemy).
     """
     query_tokens = {w for w in re.sub(r"[^\w\s]", "", query.lower()).split()
                     if w not in STOPWORDS and len(w) > 2}
@@ -70,7 +71,8 @@ def _result_matches_query(query: str, *descriptions: str) -> bool:
     desc_text = " ".join(d for d in descriptions if d).lower()
     if not desc_text.strip():
         return True  # no metadata to judge by — accept rather than starve
-    return any(token in desc_text for token in query_tokens)
+    required = 2 if len(query_tokens) >= 4 else 1
+    return sum(1 for token in query_tokens if token in desc_text) >= required
 
 
 def _has_tool_mention(block: Dict[str, Any]) -> bool:

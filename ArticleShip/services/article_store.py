@@ -236,12 +236,7 @@ def get_article_by_id(article_id: str) -> Dict[str, Any] | None:
     return _decode_article_from_storage(article)
 
 
-def list_articles(
-    slug: str | None = None,
-    status: str | None = None,
-    user_id: str | None = None,
-    include_published_from_others: bool = False,
-) -> List[Dict[str, Any]]:
+def list_articles(slug: str | None = None, status: str | None = None, user_id: str | None = None) -> List[Dict[str, Any]]:
     collection = _get_collection()
     query: Dict[str, Any] = {}
     if slug:
@@ -249,10 +244,7 @@ def list_articles(
     if status:
         query["status"] = status
     if user_id:
-        if include_published_from_others:
-            query["$or"] = [{"user_id": user_id}, {"status": "published"}]
-        else:
-            query["user_id"] = user_id
+        query["user_id"] = user_id
     docs = list(collection.find(query, {"_id": 0}).sort("createdAt", -1))
     return [
         _decode_article_from_storage(doc) or doc

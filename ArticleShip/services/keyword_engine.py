@@ -151,6 +151,10 @@ Do not output this analysis — use it to inform your keyword choices.
 
 KEYWORD RULES:
 - primary_keyword: The single highest-value keyword. Must be specific enough to be winnable — avoid pure head terms like "AI" or "software jobs". Prefer a 2–4 word phrase with clear search intent. Bias toward long-tail, experience-based queries over generic category terms.
+  NATURAL ENGLISH REQUIRED: the primary keyword is repeated verbatim in the H1, intro, one H2, and closing — so it must read as a grammatical English phrase a human editor would write, not a search-box keyword mash.
+  Bad: "top 15 job portals 2026 remote india" (word salad — poisons every heading that repeats it)
+  Good: "best remote job portals in India" or "job portals for remote work 2026"
+  Test: can the phrase open a normal sentence unchanged? If not, rewrite it.
 - secondary_keywords: 3–5 keywords that support the primary. Each must target a distinct angle (one tool-focused, one workflow-focused, one outcome-focused, one risk/failure-focused). No near-duplicates of the primary. At least one secondary keyword must target a failure, mistake, or limitation angle.
 - long_tail_keywords: 5–7 full question or clause phrases (8–15 words each). These must reflect ACTUAL questions people type — use the search context as your signal. At least 2 must be phrased as first-person or experiential queries. At least 1 must target a comparison.
 - lsi_keywords: 5–7 semantically related terms. Conceptually related but NOT synonyms or rewordings of the primary keyword. Include at least 2 terms that relate to failure modes, limitations, or risks.

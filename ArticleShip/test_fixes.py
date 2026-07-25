@@ -246,6 +246,28 @@ def test_block_image_query_prefers_alt_tag():
     # Relevance gate: a bicycle photo must be rejected for a GPU query.
     assert not _result_matches_query("server racks nvidia gpus data center", "a black bicycle on a black background")
     assert _result_matches_query("server racks nvidia gpus data center", "rows of servers in a data center")
+    # Polysemy: one shared token ("remote") is not enough for a rich query.
+    assert not _result_matches_query("remote work job portals india comparison", "an apple tv remote on a table")
+    assert _result_matches_query("remote work job portals india comparison", "woman doing remote work on a laptop")
+    # Short queries still accept a single-token match.
+    assert _result_matches_query("gpu server", "close-up of a gpu")
+
+
+def test_grounding_catches_spelled_out_stats():
+    context = "TITLE: T\nURL: https://example.com/x\nINSIGHT: Fees rose 12% overall."
+    article = "\n".join([
+        "## Scams",
+        "The scam defrauded twelve percent of applicants. Fees rose 12% per the study. The scheme cost five million dollars in total. Vigilance is the only defense.",
+    ])
+    cleaned, warnings = article_builder._ground_generated_article(article, context)
+    assert "twelve percent" not in cleaned, "spelled-out percentage must be removed"
+    assert "five million dollars" not in cleaned, "spelled-out currency magnitude must be removed"
+    assert "Fees rose 12% per the study." in cleaned, "grounded numeral stat must survive"
+    assert "Vigilance is the only defense." in cleaned
+    # Ordinary counts are NOT policed — normal prose survives.
+    article2 = "## Timing\nThe migration took three days of engineering time."
+    cleaned2, _ = article_builder._ground_generated_article(article2, context)
+    assert "three days" in cleaned2
 
 
 if __name__ == "__main__":

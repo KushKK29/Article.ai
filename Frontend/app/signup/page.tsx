@@ -6,12 +6,15 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function SignupPage() {
-  const { signup, user, loading } = useAuth();
+  const { signup, verifyOtp, user, loading } = useAuth();
   const router = useRouter();
+  const [step, setStep] = useState<"form" | "otp">("form");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Already logged in → redirect
@@ -36,9 +39,37 @@ export default function SignupPage() {
     setSubmitting(true);
     try {
       await signup(email, password);
-      router.replace("/generate");
+      setStep("otp");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await verifyOtp(email, otp);
+      router.replace("/generate");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError(null);
+    setInfo(null);
+    setSubmitting(true);
+    try {
+      await signup(email, password);
+      setInfo("A new code has been sent to your email.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not resend code.");
     } finally {
       setSubmitting(false);
     }
@@ -59,10 +90,10 @@ export default function SignupPage() {
             Editorial Console
           </p>
           <h1 className="text-2xl font-extrabold font-serif tracking-tight text-[var(--ink)]">
-            Open Your Editorial Desk
+            {step === "form" ? "Open Your Editorial Desk" : "Check Your Email"}
           </h1>
           <p className="font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
-            Free to start. No credit card required.
+            {step === "form" ? "Free to start. No credit card required." : `We sent a 6-digit code to ${email}`}
           </p>
         </header>
 
@@ -73,64 +104,109 @@ export default function SignupPage() {
               {error}
             </div>
           )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@domain.com"
-                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
-              />
+          {info && (
+            <div className="bg-emerald-50 border border-emerald-400 text-emerald-800 p-3 font-mono text-[10px] uppercase tracking-wider">
+              {info}
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
-                Password <span className="text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">(min 8 characters)</span>
-              </label>
-              <input
-                id="password"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
-              />
-            </div>
+          {step === "form" ? (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
+                  Email Address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@domain.com"
+                  className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
+                />
+              </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="confirm" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
-                Confirm Password
-              </label>
-              <input
-                id="confirm"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
-              />
-            </div>
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
+                  Password <span className="text-[color-mix(in_srgb,var(--ink-muted)_60%,transparent)]">(min 8 characters)</span>
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full bg-[var(--ink)] text-[var(--paper)] py-3 text-xs font-mono font-bold uppercase tracking-widest shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 disabled:opacity-60"
-            >
-              {submitting ? "Registering…" : "Open Free Desk"}
-            </button>
-          </form>
+              <div className="space-y-1.5">
+                <label htmlFor="confirm" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
+                  Confirm Password
+                </label>
+                <input
+                  id="confirm"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[var(--ink)] text-[var(--paper)] py-3 text-xs font-mono font-bold uppercase tracking-widest shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 disabled:opacity-60"
+              >
+                {submitting ? "Registering…" : "Open Free Desk"}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleVerify} className="space-y-5">
+              <div className="space-y-1.5">
+                <label htmlFor="otp" className="block font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
+                  Verification Code
+                </label>
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  required
+                  autoComplete="one-time-code"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                  placeholder="000000"
+                  className="w-full bg-[var(--paper)] border-2 border-[var(--ink)] px-3 py-2.5 font-sans text-lg tracking-[0.5em] text-center text-[var(--ink)] focus:outline-none focus:border-[var(--accent)] focus:shadow-[2px_2px_0px_rgba(29,78,216,1)] transition-all rounded-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting || otp.length !== 6}
+                className="w-full bg-[var(--ink)] text-[var(--paper)] py-3 text-xs font-mono font-bold uppercase tracking-widest shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 disabled:opacity-60"
+              >
+                {submitting ? "Verifying…" : "Verify & Open Desk"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={submitting}
+                className="w-full text-center font-mono text-[10px] uppercase tracking-wider text-[var(--accent)] hover:underline disabled:opacity-60"
+              >
+                Resend Code
+              </button>
+            </form>
+          )}
 
           <div className="border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)] pt-4 text-center font-mono text-[10px] uppercase tracking-wider text-[var(--ink-muted)]">
             Already have a desk?{" "}

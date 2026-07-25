@@ -369,6 +369,8 @@ STRUCTURE RULES:
 
 8. No redundancy: Every heading must cover a distinct angle. Do not create two H2s that overlap in scope.
 
+8b. LISTICLE INTEGRITY: If the topic promises N items ("Top 15...", "7 best..."), the outline must account for all N. At the 1500+ word tiers, give the most important items their own H3s; at lower tiers, plan sections around complete list blocks. Never promise N in the H1 and structurally cover fewer.
+
 9. RETRIEVAL GROUNDING (required): Use the SEARCH CONTEXT to align headings with real search phrasing and practical user questions. Do not copy sentences verbatim, and do not invent named tools/stats not supported by either SEO DATA or search context.
 
 OUTPUT: A single valid JSON object only. No markdown fences. No explanation. No trailing commas.

@@ -91,31 +91,9 @@ def test_draft_article_hidden_from_non_owner():
     finally:
         _get_collection().delete_one({"id": article["id"]})
 
-def test_archive_listing_shows_others_published_but_not_others_drafts():
-    my_draft = save_article("My Draft", {"seo_data": {"category": "Test"}}, user_id="viewer-1")
-    other_draft = save_article("Other Draft", {"seo_data": {"category": "Test"}}, user_id="other-1")
-    other_published = save_article("Other Published", _READY_PAYLOAD, user_id="other-1")
-    try:
-        other_published = publish_article(other_published["id"])
-        assert other_published["status"] == "published"
-
-        viewer_token = create_access_token("viewer-1", "viewer1@example.com")
-        resp = client.get("/api/v1/articles", headers={"Authorization": f"Bearer {viewer_token}"})
-        assert resp.status_code == 200
-        ids = {a["id"] for a in resp.json()["articles"]}
-
-        assert my_draft["id"] in ids
-        assert other_published["id"] in ids
-        assert other_draft["id"] not in ids
-    finally:
-        _get_collection().delete_one({"id": my_draft["id"]})
-        _get_collection().delete_one({"id": other_draft["id"]})
-        _get_collection().delete_one({"id": other_published["id"]})
-
 if __name__ == "__main__":
     test_save_article_persists_user_id()
     test_list_articles_filters_by_user_id()
     test_published_article_visible_without_auth()
     test_draft_article_hidden_from_non_owner()
-    test_archive_listing_shows_others_published_but_not_others_drafts()
     print("OK")

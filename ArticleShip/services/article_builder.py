@@ -569,6 +569,7 @@ WRITING RULES:
    Prohibit fabricated methodology notes or false precision:
    - Do NOT invent specific tools (e.g. Toggl), hour counts, or trial settings (e.g. "160 hours of active development") to justify estimates.
    - Do NOT invent metrics or stats. Use estimates only when qualified with words like "roughly" or "approximately".
+   - Do NOT attach specific counts to invented anecdotes — digits OR spelled out. "A scam that had defrauded twelve other candidates that week" is fabricated false precision unless the search context says so. An anecdote can be vivid without a made-up number: name the failure, not a fake count.
    - Attribution rules: any specific metric must either (a) come directly from a real search context source with attribution or (b) be clearly labeled as a general industry estimate without inventing mock methodology.
    - All percentage figures in the article must be internally consistent. Before outputting, verify: if boilerplate is "60% faster" in one section, it cannot be "70% faster" in another without an explanation of the difference.
 
@@ -765,6 +766,17 @@ _STAT_RE = re.compile(
     r"|\b\d[\d,]*(?:\.\d+)?\s+(?:million|billion|trillion)\b",
     re.IGNORECASE,
 )
+# Spelled-out magnitude statistics ("twelve percent", "five million dollars").
+# Search context uses numerals, so these can never trace back to it — always
+# ungrounded. Bare counts ("three days") are left alone; policing them would
+# butcher ordinary prose, so they're handled by prompt rule 7 instead.
+_SPELLED_STAT_RE = re.compile(
+    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|a dozen)\s+"
+    r"(?:percent|million|billion|trillion|dollars|rupees|lakh|crore)\b",
+    re.IGNORECASE,
+)
+
 # Markdown links, excluding images (![alt](url)).
 _LINK_RE = re.compile(r"(?<!\!)\[([^\]]+)\]\((https?://[^)\s]+)\)")
 
@@ -855,7 +867,7 @@ def _ground_generated_article(
         kept = []
         for sentence in sentences:
             stats = _STAT_RE.findall(sentence)
-            if stats and not all(_stat_grounded(s) for s in stats):
+            if (stats and not all(_stat_grounded(s) for s in stats)) or _SPELLED_STAT_RE.search(sentence):
                 section_warnings.append(f"Removed ungrounded statistic: {sentence.strip()[:140]}")
                 continue
             kept.append(sentence)

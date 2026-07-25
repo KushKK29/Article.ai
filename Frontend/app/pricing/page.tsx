@@ -11,6 +11,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
+import { SubscribeButton } from "@/components/SubscribeButton";
 
 export const metadata: Metadata = {
   title: "Subscription Rates | ArticleShip Editorial Desk",
@@ -20,6 +21,7 @@ export const metadata: Metadata = {
 export default function PricingPage() {
   const tiers = [
     {
+      tierId: "free" as const,
       name: "Free Sheet",
       price: "$0",
       description: "For solo authors establishing their digital journal archives.",
@@ -34,6 +36,7 @@ export default function PricingPage() {
       primary: false
     },
     {
+      tierId: "pro" as const,
       name: "Pro Press",
       price: "$49",
       period: "/month",
@@ -51,6 +54,7 @@ export default function PricingPage() {
       primary: true
     },
     {
+      tierId: "agency" as const,
       name: "Agency Master",
       price: "$149",
       period: "/month",
@@ -122,12 +126,21 @@ export default function PricingPage() {
                 </div>
 
                 <div className="mt-8 pt-6 border-t border-[color-mix(in_srgb,var(--ink)_10%,transparent)]">
-                  <Link
-                    href={tier.buttonLink}
-                    className={`w-full block text-center py-3 text-xs font-mono font-bold uppercase tracking-wider rounded-none transition-all active:translate-y-0.5 ${btnStyle}`}
-                  >
-                    {tier.buttonText}
-                  </Link>
+                  {tier.tierId === "free" ? (
+                    <Link
+                      href={tier.buttonLink}
+                      className={`w-full block text-center py-3 text-xs font-mono font-bold uppercase tracking-wider rounded-none transition-all active:translate-y-0.5 ${btnStyle}`}
+                    >
+                      {tier.buttonText}
+                    </Link>
+                  ) : (
+                    <SubscribeButton
+                      tier={tier.tierId}
+                      className={`w-full block text-center py-3 text-xs font-mono font-bold uppercase tracking-wider rounded-none transition-all active:translate-y-0.5 disabled:opacity-60 ${btnStyle}`}
+                    >
+                      {tier.buttonText}
+                    </SubscribeButton>
+                  )}
                 </div>
               </div>
               </Reveal>

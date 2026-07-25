@@ -11,6 +11,7 @@ Token strategy
 
 import logging
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Any, Dict
@@ -40,6 +41,9 @@ if JWT_SECRET_KEY == "INSECURE_FALLBACK_CHANGE_ME":
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+OTP_EXPIRE_MINUTES = 10
+OTP_MAX_ATTEMPTS = 5
 
 _http_bearer = HTTPBearer(auto_error=True)
 
@@ -142,6 +146,14 @@ def create_user(email: str, plain_password: str) -> Dict[str, Any]:
         "hashed_password": hash_password(plain_password),
         "credits": 0,
         "usage": {"completed_jobs": 0, "failed_jobs": 0},
+        "tier": "free",
+        "stripe_customer_id": None,
+        "stripe_subscription_id": None,
+        "stripe_current_period_end": None,
+        "verified": False,
+        "otp_code": None,
+        "otp_expires_at": None,
+        "otp_attempts": 0,
         "created_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     col.insert_one(user)
@@ -159,6 +171,57 @@ def get_user_by_id(user_id: str) -> Dict[str, Any] | None:
     col = _get_users_collection()
     doc = col.find_one({"id": user_id}, {"_id": 0})
     return doc
+
+
+def get_user_by_stripe_customer_id(customer_id: str) -> Dict[str, Any] | None:
+    col = _get_users_collection()
+    doc = col.find_one({"stripe_customer_id": customer_id}, {"_id": 0})
+    return doc
+
+
+def update_user(user_id: str, fields: Dict[str, Any]) -> None:
+    """Set arbitrary fields on a user document (e.g. billing state)."""
+    col = _get_users_collection()
+    col.update_one({"id": user_id}, {"$set": fields})
+
+
+def is_verified(user: Dict[str, Any]) -> bool:
+    # Accounts created before OTP verification existed have no "verified"
+    # field at all — treat those as already verified so nobody already
+    # signed up gets locked out by this change.
+    return user.get("verified", True)
+
+
+# ---------------------------------------------------------------------------
+# OTP (signup email verification)
+# ---------------------------------------------------------------------------
+
+def generate_and_store_otp(user_id: str) -> str:
+    """Generates a fresh 6-digit code, stores it (resets attempts), returns it to email out."""
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=OTP_EXPIRE_MINUTES)).isoformat().replace("+00:00", "Z")
+    update_user(user_id, {"otp_code": code, "otp_expires_at": expires_at, "otp_attempts": 0})
+    return code
+
+
+def verify_otp_code(user_id: str, submitted_code: str) -> None:
+    """Validates a submitted OTP. Raises HTTPException on any failure; marks the user verified on success."""
+    user = get_user_by_id(user_id)
+    if not user or not user.get("otp_code"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No verification code pending for this account.")
+
+    if user.get("otp_attempts", 0) >= OTP_MAX_ATTEMPTS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Too many incorrect attempts. Request a new code.")
+
+    expires_at = datetime.fromisoformat(user["otp_expires_at"].replace("Z", "+00:00"))
+    if datetime.now(timezone.utc) > expires_at:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Verification code expired. Request a new one.")
+
+    if submitted_code != user["otp_code"]:
+        update_user(user_id, {"otp_attempts": user.get("otp_attempts", 0) + 1})
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid verification code.")
+
+    update_user(user_id, {"verified": True, "otp_code": None, "otp_expires_at": None, "otp_attempts": 0})
 
 
 def _safe_user(user: Dict[str, Any]) -> Dict[str, Any]:
