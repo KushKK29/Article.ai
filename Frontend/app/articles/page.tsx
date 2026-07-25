@@ -93,7 +93,7 @@ function ArticlesPageContent() {
     async function loadArticles() {
       setLoading(true);
       try {
-        const res = await authFetch("/api/articles");
+        const res = await fetch(getBackendUrl("/api/v1/articles"));
         if (!res.ok) throw new Error("Failed to load");
         const data = await res.json();
         setArticles(data.articles || []);
@@ -104,10 +104,7 @@ function ArticlesPageContent() {
       }
     }
     loadArticles();
-    // Re-fetch when the access token identity changes (e.g. support
-    // impersonation swaps in a different user's token) so the list reflects
-    // whoever is currently "logged in" without needing a full page reload.
-  }, [accessToken]);
+  }, []);
 
   const categories = useMemo(() => {
     const cats = new Set<string>();
