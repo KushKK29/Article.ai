@@ -24,8 +24,14 @@ from services.ddg_search import perform_ddg_search
 from services.auth import (
     create_user, get_user_by_email, verify_password, get_current_user,
     create_access_token, create_refresh_token, decode_token, REFRESH_TOKEN_EXPIRE_DAYS,
+    generate_and_store_otp, verify_otp_code, is_verified, OTP_EXPIRE_MINUTES,
 )
 from services.privileges import over_free_tier_limit, is_admin, is_privileged, PRIVILEGED_EMAILS
+from services.payment_service import (
+    create_checkout_session, create_billing_portal_session,
+    verify_webhook_event, handle_webhook_event,
+)
+from services.email_service import send_email
 
 
 
@@ -64,6 +70,15 @@ class ImpersonateRequest(BaseModel):
     target_email: EmailStr
 
 
+class CheckoutRequest(BaseModel):
+    tier: str
+
+
+class VerifyOtpRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+
 @app.get("/", tags=["Health"])
 async def root_health():
     return {"status": "ok", "service": "ArticleShip API"}
@@ -79,26 +94,59 @@ async def health_check():
 # ---------------------------------------------------------------------------
 
 @app.post("/api/v1/auth/signup", tags=["Auth"])
-async def signup(request: SignupRequest, response: Response):
+async def signup(request: SignupRequest):
     """
-    Register a new user. Returns access token in body; sets refresh token
-    in an httpOnly cookie (7 days).
+    Register a new user (or resend a code to an existing unverified one) and
+    email a 6-digit verification code. No tokens issued yet — call
+    /api/v1/auth/verify-otp with the code to complete signup and log in.
     """
     if len(request.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
-    user = create_user(request.email, request.password)
-    access_token = create_access_token(user["id"], user["email"])
-    refresh_token = create_refresh_token(user["id"])
+
+    existing = get_user_by_email(request.email)
+    if existing and is_verified(existing):
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+
+    # Resending only re-issues the OTP — it must never change the password of
+    # an account the caller hasn't proven they own yet (that proof is the OTP
+    # itself), or anyone could hijack someone else's in-flight signup.
+    user = existing if existing else create_user(request.email, request.password)
+
+    otp = generate_and_store_otp(user["id"])
+    send_email(
+        user["email"],
+        "Your ArticleShip verification code",
+        f"Your verification code is {otp}. It expires in {OTP_EXPIRE_MINUTES} minutes.",
+    )
+    return {"message": "Verification code sent to your email.", "email": user["email"]}
+
+
+@app.post("/api/v1/auth/verify-otp", tags=["Auth"])
+async def verify_otp(request: VerifyOtpRequest, response: Response):
+    """
+    Verifies the emailed code and completes signup: marks the account
+    verified, returns an access token, and sets the refresh-token cookie.
+    """
+    user = get_user_by_email(request.email)
+    if not user:
+        raise HTTPException(status_code=404, detail="No signup found for this email.")
+
+    verify_otp_code(user["id"], request.otp)
+
+    user = get_user_by_email(request.email)  # re-fetch: verify_otp_code just cleared the otp fields
+    safe = {k: v for k, v in user.items() if k != "hashed_password"}
+    access_token = create_access_token(safe["id"], safe["email"])
+    refresh_token = create_refresh_token(safe["id"])
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,     # required for SameSite=None; loopback hosts (localhost/127.0.0.1)
-        samesite="none", # are treated as secure contexts, so this also works over local HTTP
+        secure=True,
+        samesite="none",
         max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/v1/auth/refresh",
     )
-    return {"access_token": access_token, "token_type": "bearer", "user": user}
+    return {"access_token": access_token, "token_type": "bearer", "user": safe}
 
 
 @app.post("/api/v1/auth/login", tags=["Auth"])
@@ -110,6 +158,8 @@ async def login(request: LoginRequest, response: Response):
     user = get_user_by_email(request.email)
     if not user or not verify_password(request.password, user.get("hashed_password", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password.")
+    if not is_verified(user):
+        raise HTTPException(status_code=403, detail="Please verify your email before logging in.")
 
     safe = {k: v for k, v in user.items() if k != "hashed_password"}
     access_token = create_access_token(safe["id"], safe["email"])
@@ -183,6 +233,34 @@ async def impersonate_user(
     token = create_access_token(target["id"], target["email"])
     safe_user = {k: v for k, v in target.items() if k not in ("hashed_password", "_id", "otp_code", "otp_expires_at", "otp_attempts")}
     return {"access_token": token, "token_type": "bearer", "user": safe_user}
+
+
+# ---------------------------------------------------------------------------
+# Billing endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/v1/billing/checkout", tags=["Billing"])
+async def billing_checkout(request: CheckoutRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Creates a Stripe Checkout session for the requested tier, returns its URL."""
+    url = create_checkout_session(current_user, request.tier)
+    return {"url": url}
+
+
+@app.post("/api/v1/billing/portal", tags=["Billing"])
+async def billing_portal(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Creates a Stripe Billing Portal session for the current user, returns its URL."""
+    url = create_billing_portal_session(current_user)
+    return {"url": url}
+
+
+@app.post("/api/v1/billing/webhook", tags=["Billing"])
+async def billing_webhook(request: Request):
+    """Stripe calls this directly — authenticated via signature, not a bearer token."""
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    event = verify_webhook_event(payload, sig_header)
+    handle_webhook_event(event)
+    return {"received": True}
 
 
 @app.get("/api/v1/search", tags=["Search"])
@@ -905,7 +983,7 @@ async def get_saved_articles(
                 raise HTTPException(status_code=401, detail="Invalid or expired token")
             if is_admin(payload.get("email", "")):
                 return {"articles": list_articles(status=status)}
-            return {"articles": list_articles(status=status, user_id=payload["sub"])}
+            return {"articles": list_articles(status=status, user_id=payload["sub"], include_published_from_others=(status is None))}
 
         return {"articles": list_articles(status=status)}
     except HTTPException:
