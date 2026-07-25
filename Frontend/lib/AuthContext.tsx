@@ -34,6 +34,8 @@ interface AuthState {
   logout: () => Promise<void>;
   /** Returns a valid (possibly refreshed) access token, or null if unauthenticated. */
   getToken: () => Promise<string | null>;
+  /** Applies an externally-obtained token/user pair (used by support impersonation). */
+  applyToken: (token: string, user: AuthUser) => void;
 }
 
 import { getBackendBaseUrl } from "./backend";
@@ -149,8 +151,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  // ── applyToken (used by impersonation: apply an externally-obtained token/user pair) ──
+  const applyToken = useCallback((token: string, impersonatedUser: AuthUser) => {
+    setAccessToken(token);
+    tokenRef.current = token;
+    setUser(impersonatedUser);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, logout, getToken }}>
+    <AuthContext.Provider value={{ user, accessToken, loading, login, signup, logout, getToken, applyToken }}>
       {children}
     </AuthContext.Provider>
   );

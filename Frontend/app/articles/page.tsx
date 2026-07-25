@@ -4,9 +4,67 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SavedArticleRecord } from "@/components/SavedArticleWorkbench";
 import { useAuthFetch } from "@/lib/useAuthFetch";
+import { useAuth } from "@/lib/AuthContext";
+import { getBackendUrl } from "@/lib/backend";
 import RequireAuth from "@/components/RequireAuth";
 
 const ITEMS_PER_PAGE = 12;
+
+// Display-only — real enforcement is server-side (services/privileges.py).
+const IMPERSONATION_ALLOWED_EMAILS = new Set(["support@articleship.com", "kush282930@gmail.com"]);
+
+function ImpersonationPanel() {
+  const { user, applyToken } = useAuth();
+  const authFetch = useAuthFetch();
+  const [targetEmail, setTargetEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!user?.email || !IMPERSONATION_ALLOWED_EMAILS.has(user.email)) return null;
+
+  const handleImpersonate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await authFetch(getBackendUrl("/api/v1/auth/impersonate"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_email: targetEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Impersonation failed");
+      applyToken(data.access_token, data.user);
+      window.location.href = "/account";
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impersonation failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-3">
+      <h3 className="text-sm font-bold text-[var(--text-main)]">Support: Login as User</h3>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={targetEmail}
+          onChange={(e) => setTargetEmail(e.target.value)}
+          placeholder="user@example.com"
+          className="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/50 bg-[var(--surface-soft)] text-[var(--text-main)]"
+        />
+        <button
+          onClick={handleImpersonate}
+          disabled={loading || !targetEmail}
+          className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700 disabled:opacity-50"
+        >
+          {loading ? "Loading..." : "Login as user"}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
+  );
+}
 
 export default function ArticlesPage() {
   return (
@@ -116,6 +174,8 @@ function ArticlesPageContent() {
             Back to Studio
           </Link>
         </header>
+
+        <ImpersonationPanel />
 
         <section className="glass-card rounded-2xl p-5 shadow-sm space-y-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
