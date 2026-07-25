@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -33,6 +34,8 @@ app = FastAPI(
     description="Backend for SEO-Optimized Article Generator",
     version="1.0.0"
 )
+
+logger = logging.getLogger("articleship")
 
 _default_dev_origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002"]
 _extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
@@ -176,6 +179,7 @@ async def impersonate_user(
     target = get_user_by_email(body.target_email)
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
+    logger.warning("IMPERSONATION: %s -> %s", current_user["email"], target["email"])
     token = create_access_token(target["id"], target["email"])
     safe_user = {k: v for k, v in target.items() if k not in ("hashed_password", "_id", "otp_code", "otp_expires_at", "otp_attempts")}
     return {"access_token": token, "token_type": "bearer", "user": safe_user}
