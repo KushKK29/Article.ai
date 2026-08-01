@@ -14,7 +14,7 @@ from services.search.engine import gather_search_context, format_grounding_as_sn
 load_dotenv()
 
 # ── Explicitly pick the provider/model this service uses ──────────────────
-# provider: "gemini" | "openrouter" | "nvidia"
+# provider: "gemini" | "openrouter" | "nvidia" | "qwen"
 LLM_PROVIDER = "gemini"
 LLM_MODEL = "gemini-3-flash-preview"
 
@@ -86,7 +86,7 @@ def _retrieve_structure_context_sync(topic: str) -> str:
                 break
 
     except Exception as e:
-        print(f"Structure retrieval failed: {e}")
+        logger.error("Structure retrieval failed: %s", e)
 
     return "\n\n---\n\n".join(snippets) if snippets else "No context available."
 
@@ -277,12 +277,14 @@ async def build_article_structure(
         if formatted:
             search_context = formatted
 
-    # Fix 2: soft degraded fallback — better a warned output than no output at all
+    # Total grounding failure (DDG + Tavily/Exa) is a hard failure, matching
+    # keyword_engine.py — degrading silently here would let an ungrounded
+    # structure through with no signal, undermining the anti-fabrication guarantee.
     if search_context == "No context available.":
-        search_context = (
-            "No live context retrieved. "
-            "Base structure on SEO data and topic knowledge only. "
-            "Do not invent competitor references or fabricate statistics."
+        logger.error("Structure generation aborted for '%s': no search context from any provider.", topic)
+        raise RuntimeError(
+            "Structure retrieval failed — no search context available from DuckDuckGo or Tavily/Exa. "
+            "Cannot generate a grounded structure without live search signal."
         )
 
     # Fix 5: prevent silent empty content_angle reaching the prompt

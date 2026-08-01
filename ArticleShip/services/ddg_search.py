@@ -1,6 +1,10 @@
 import asyncio
+import logging
 from ddgs import DDGS
 from typing import Dict, Any, List
+
+logger = logging.getLogger(__name__)
+
 
 def _ddg_search_sync(query: str, count: int = 10) -> List[Dict[str, Any]]:
     """
@@ -22,7 +26,7 @@ async def perform_ddg_search(query: str, count: int = 10) -> Dict[str, Any]:
             "results": results
         }
     except Exception as e:
-        print(f"DDG Search Error: {str(e)}")
+        logger.error("DDG Search Error: %s", e)
         return {
             "query": query,
             "count": 0,

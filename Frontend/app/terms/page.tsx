@@ -1,9 +1,9 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following values before launch:
- * 1. Uptime / Outage SLA: Outages don't warrant credits but failed runs are refunded (Line 59)
- * 2. Suspension timeline: 3 failed payment attempts over 7 days (Line 54)
- * 3. Support Email: desk@articleship.com (Line 68)
+ * 1. Uptime / Outage SLA: Outages don't warrant credits but failed runs are refunded
+ * 2. Suspension timeline: 3 failed payment attempts over 7 days
+ * 3. Support Email: desk@articleship.com
  */
 
 import type { Metadata } from "next";

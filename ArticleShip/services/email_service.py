@@ -2,8 +2,8 @@
 ArticleShip Email Service
 --------------------------
 Generic SMTP sender (stdlib only — works with any free SMTP provider:
-Gmail SMTP, Brevo's free tier, Mailgun, etc.) via env vars. No specific
-email templates/triggers wired up yet — just the send primitive.
+Gmail SMTP, Brevo's free tier, Mailgun, etc.) via env vars. Used for OTP
+signup verification and contact-form submissions (see main.py).
 """
 
 import logging

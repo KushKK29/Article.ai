@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
-export async function POST(request: NextRequest) {
+type RouteContext = {
+  params: { id: string };
+};
+
+export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const authHeader = request.headers.get("Authorization");
     const headers: Record<string, string> = {};
@@ -9,7 +13,7 @@ export async function POST(request: NextRequest) {
       headers["Authorization"] = authHeader;
     }
 
-    const response = await fetch(getBackendUrl("/api/v1/billing/portal"), {
+    const response = await fetch(getBackendUrl(`/api/v1/jobs/${context.params.id}/retry`), {
       method: "POST",
       headers,
       cache: "no-store"
@@ -22,8 +26,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("failed to create billing portal session:", error);
-    const message = error instanceof Error ? error.message : "failed to create billing portal session";
+    console.error("failed to retry job:", error);
+    const message = error instanceof Error ? error.message : "failed to retry job";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -23,6 +23,11 @@ logger = logging.getLogger(__name__)
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 _WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+if not _WEBHOOK_SECRET:
+    logger.warning(
+        "STRIPE_WEBHOOK_SECRET is not set — all incoming Stripe webhooks will fail "
+        "signature verification (fails safe, but billing tier updates will silently never apply)."
+    )
 _FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 
 _TIER_PRICE_IDS = {

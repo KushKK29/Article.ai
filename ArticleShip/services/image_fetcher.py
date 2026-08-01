@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 UNSPLASH_ACCESS_KEY = os.getenv("UNSPLASH_ACCESS_KEY", "")
 GOOGLE_SEARCH_API_KEY = os.getenv("GOOGLE_SEARCH_API_KEY", "")
 GOOGLE_SEARCH_CX = os.getenv("GOOGLE_SEARCH_CX", "")
-POLLEN_API_KEY = os.getenv("POLLEN_API_KEY", "") or os.getenv("pollen_api_key", "")  # Your Pollen/AI image generation key
 
 STOPWORDS = {
     "a", "an", "the", "and", "but", "if", "or", "because", "as", "what", "which",

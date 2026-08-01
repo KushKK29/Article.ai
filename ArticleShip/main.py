@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Depends, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
@@ -54,6 +55,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(Exception)
+async def _log_unhandled_exception(request: Request, exc: Exception):
+    """Logs any exception a route didn't explicitly convert to an HTTPException.
+    The response body is a generic message — the real exception (which can
+    contain DB URIs, file paths, etc.) goes to the server log only, not the
+    client response."""
+    logger.error("Unhandled error: %s", exc, exc_info=True)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 # ---------------------------------------------------------------------------
 # Auth request/response models
 # ---------------------------------------------------------------------------
@@ -80,8 +91,8 @@ class VerifyOtpRequest(BaseModel):
 
 
 class ContactFormRequest(BaseModel):
-    subject: str
-    body: str
+    subject: str = Field(max_length=200)
+    body: str = Field(max_length=5000)
     reply_to: EmailStr
 
 
@@ -265,7 +276,14 @@ async def billing_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
     event = verify_webhook_event(payload, sig_header)
-    handle_webhook_event(event)
+    try:
+        handle_webhook_event(event)
+    except Exception as e:
+        logger.error(
+            "Webhook handling failed for event type=%s id=%s: %s",
+            event.get("type"), event.get("id"), e, exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail="Webhook processing failed")
     return {"received": True}
 
 
@@ -283,12 +301,35 @@ async def search(q: str = Query(...), count: int = 10):
     return results
 
 
+# ponytail: in-memory rate limit, single-process only — matches the frontend's
+# route.ts limiter; move both to Redis together if throughput requires it.
+_CONTACT_RATE_LIMIT_WINDOW_SECONDS = 3600
+_CONTACT_RATE_LIMIT_MAX_ATTEMPTS = 5
+_contact_rate_limit: Dict[str, Any] = {}
+
+def _contact_rate_limited(reply_to: str) -> bool:
+    import time
+    now = time.time()
+    entry = _contact_rate_limit.get(reply_to)
+    if not entry or now > entry["reset_at"]:
+        _contact_rate_limit[reply_to] = {"count": 1, "reset_at": now + _CONTACT_RATE_LIMIT_WINDOW_SECONDS}
+        return False
+    if entry["count"] >= _CONTACT_RATE_LIMIT_MAX_ATTEMPTS:
+        return True
+    entry["count"] += 1
+    return False
+
+
 @app.post("/api/email/contact", tags=["Email"])
 async def send_contact_email(request: ContactFormRequest):
     """
     Internal endpoint: sends contact form submissions to support@articleship.com.
     Hardcoded recipient prevents email relay attacks; reply_to allows sender responses.
+    Rate-limited per reply_to since this is reachable directly, not just via the
+    frontend's own (separately rate-limited) proxy route.
     """
+    if _contact_rate_limited(request.reply_to):
+        raise HTTPException(status_code=429, detail="Too many submissions. Please try again later.")
     try:
         support_email = os.getenv("SUPPORT_EMAIL", "support@articleship.com")
         send_email(
@@ -388,10 +429,11 @@ class ScheduleArticleRequest(ArticleGenParams):
     scheduled_at: str
     auto_publish: bool = False
     publish_target: str | None = None
-    user_id: str | None = None
     image_source: str = "stock"
     include_inline_styles: bool = True
 
+
+MAX_BATCH_TOPICS = 20
 
 class BatchCreateRequest(ArticleGenParams):
     topics: List[str]
@@ -401,7 +443,15 @@ class BatchCreateRequest(ArticleGenParams):
     auto_publish: bool = False
     image_source: str = "stock"
     include_inline_styles: bool = True
-    user_id: str | None = None
+
+    @field_validator("topics")
+    @classmethod
+    def _validate_topics(cls, value: List[str]) -> List[str]:
+        if not value:
+            raise ValueError("topics must not be empty")
+        if len(value) > MAX_BATCH_TOPICS:
+            raise ValueError(f"A batch may contain at most {MAX_BATCH_TOPICS} topics")
+        return value
 
 class SaveArticleRequest(BaseModel):
     topic: str
@@ -424,67 +474,28 @@ def _job_cost_defaults() -> Dict[str, Any]:
         "estimated_cost": 0.0,
     }
 
-def _normalize_job_cost(value: Any) -> Dict[str, Any]:
-    if not isinstance(value, dict):
-        return _job_cost_defaults()
-    merged = _job_cost_defaults()
-    for key, default_value in merged.items():
-        if isinstance(default_value, dict):
-            incoming = value.get(key, {})
-            if isinstance(incoming, dict):
-                merged[key] = {**default_value, **incoming}
-        else:
-            merged[key] = value.get(key, default_value)
-    return merged
-
-def _apply_completion_credit(user_id: str) -> None:
-    from services.auth import _get_users_collection
-    users_col = _get_users_collection()
-    users_col.update_one(
-        {"id": user_id},
-        {
-            "$inc": {"credits": 1, "usage.completed_jobs": 1}
-        },
-    )
-
-def _apply_failure_usage(user_id: str) -> None:
-    from services.auth import _get_users_collection
-    users_col = _get_users_collection()
-    users_col.update_one(
-        {"id": user_id},
-        {
-            "$inc": {"usage.failed_jobs": 1}
-        },
-    )
-
 @app.post("/api/v1/keywords", tags=["Keyword Engine"])
 async def get_keywords(request: TopicRequest):
     """
     Generate an SEO keyword cluster using a RAG approach.
     It scrapes related queries and context from the web, returning optimal keywords.
     """
-    try:
-        data = await generate_seo_keywords(request.topic)
-        return {"topic": request.topic, "data": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    data = await generate_seo_keywords(request.topic)
+    return {"topic": request.topic, "data": data}
 
 @app.post("/api/v1/structure", tags=["Structure Builder"])
 async def build_structure(request: StructureRequest):
     """
     Generate an article outline structure (H1, H2, H3, H4) based on the topic and generated SEO data.
     """
-    try:
-        data = await build_article_structure(
-            request.topic,
-            request.seo_data,
-            word_count_target=request.word_count_target,
-            image_count=request.image_count,
-            image_spacing=request.image_spacing,
-        )
-        return {"topic": request.topic, "structure": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    data = await build_article_structure(
+        request.topic,
+        request.seo_data,
+        word_count_target=request.word_count_target,
+        image_count=request.image_count,
+        image_spacing=request.image_spacing,
+    )
+    return {"topic": request.topic, "structure": data}
 
 @app.post("/api/v1/article", tags=["RAG Content Generator (Draft)"])
 async def build_article(request: ArticleRequest):
@@ -492,14 +503,11 @@ async def build_article(request: ArticleRequest):
     Takes the topic, injected SEO keywords, and strict article structure outline, 
     and writes the comprehensive markdown article content for each section.
     """
-    try:
-        content = await generate_article_content(request.topic, request.seo_data, request.structure)
-        return {
-            "topic": request.topic, 
-            "article_markdown": content
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    content = await generate_article_content(request.topic, request.seo_data, request.structure)
+    return {
+        "topic": request.topic, 
+        "article_markdown": content
+    }
 
 @app.get("/api/v1/llm-test", tags=["Debug"])
 async def llm_test(provider: str = Query(...), model: str | None = None):
@@ -546,33 +554,22 @@ async def get_article_context(request: TopicRequest):
     """
     Returns the live retrieval context used by the article generator.
     """
-    try:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"DEBUG: Retrieving context for topic: {request.topic[:80]}")
-        context = await asyncio.to_thread(_retrieve_article_context_sync, request.topic)
-        logger.info(f"DEBUG: Retrieved context length: {len(context)}")
-        logger.info(f"DEBUG: Context starts with: {context[:100]}")
-        return {
-            "topic": request.topic,
-            "context": context,
-        }
-    except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.error(f"DEBUG: Exception in get_article_context: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    logger.info(f"DEBUG: Retrieving context for topic: {request.topic[:80]}")
+    context = await asyncio.to_thread(_retrieve_article_context_sync, request.topic)
+    logger.info(f"DEBUG: Retrieved context length: {len(context)}")
+    logger.info(f"DEBUG: Context starts with: {context[:100]}")
+    return {
+        "topic": request.topic,
+        "context": context,
+    }
 
 @app.post("/api/v1/mapper", tags=["Content Mapper"])
 async def map_article_content(request: MapperRequest):
     """
     Parses a generated Markdown article and breaks it down into a structured JSON dictionary mapping every heading directly to its content.
     """
-    try:
-        mapped_data = parse_markdown_to_mapping(request.markdown_content)
-        return {"mapped_article": mapped_data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    mapped_data = parse_markdown_to_mapping(request.markdown_content)
+    return {"mapped_article": mapped_data}
 
 @app.post("/api/v1/images", tags=["Image Fetcher (parallel)"])
 async def fetch_images(request: ImageRequest):
@@ -580,11 +577,8 @@ async def fetch_images(request: ImageRequest):
     Takes the structurally mapped article and attaches proper images to sections based on priority rules.
     If image_source is 'ai_generated', uses the Pollen API. Otherwise, uses stock sources (Unsplash/Google).
     """
-    try:
-        final_data = await embed_images_in_article(request.mapped_article, ai_generated=(request.image_source == "ai_generated"))
-        return {"article_with_images": final_data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    final_data = await embed_images_in_article(request.mapped_article, ai_generated=(request.image_source == "ai_generated"))
+    return {"article_with_images": final_data}
 
 @app.post("/api/v1/generate_full_article", tags=["End-to-End Orchestrator"])
 async def generate_full_article(request: PipelineRequest):
@@ -593,39 +587,30 @@ async def generate_full_article(request: PipelineRequest):
     Takes a single topic and outputs a perfectly formatted ready-to-publish JSON payload
     including SEO metrics, word counts, and accurately embedded images.
     """
-    try:
-        final_payload = await run_pipeline(request.topic, ai_generated=(request.image_source == "ai_generated"))
-        return final_payload
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    final_payload = await run_pipeline(request.topic, ai_generated=(request.image_source == "ai_generated"))
+    return final_payload
 
 @app.post("/api/v1/html_from_final", tags=["HTML Converter"])
 async def html_from_final(request: FinalPayloadRequest):
     """
     Converts final_formatter output payload into pure HTML.
     """
-    try:
-        html_payload = convert_final_payload_to_html(request.final_payload)
-        return html_payload
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    html_payload = convert_final_payload_to_html(request.final_payload)
+    return html_payload
 
 @app.post("/api/v1/generate_full_article_html", tags=["End-to-End Orchestrator"])
 async def generate_full_article_html(request: PipelineRequest):
     """
     Runs the complete pipeline and returns the same payload plus a pure HTML article.
     """
-    try:
-        final_payload = await run_pipeline(request.topic, ai_generated=(request.image_source == "ai_generated"))
-        html_payload = convert_final_payload_to_html(final_payload)
-        return {
-            "meta": html_payload.get("meta", {}),
-            "seo_data": html_payload.get("seo_data", {}),
-            "blocks": final_payload.get("blocks", []),
-            "html": html_payload.get("html", ""),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    final_payload = await run_pipeline(request.topic, ai_generated=(request.image_source == "ai_generated"))
+    html_payload = convert_final_payload_to_html(final_payload)
+    return {
+        "meta": html_payload.get("meta", {}),
+        "seo_data": html_payload.get("seo_data", {}),
+        "blocks": final_payload.get("blocks", []),
+        "html": html_payload.get("html", ""),
+    }
 
 @app.post("/api/v1/hybrid_html_from_final", tags=["HTML Converter"])
 async def hybrid_html_from_final(request: HybridFinalPayloadRequest):
@@ -633,14 +618,11 @@ async def hybrid_html_from_final(request: HybridFinalPayloadRequest):
     Converts final formatter output into hybrid HTML:
     class-based structure + optional minimal inline styles.
     """
-    try:
-        hybrid_payload = convert_final_payload_to_hybrid_html(
-            request.final_payload,
-            include_inline_styles=request.include_inline_styles,
-        )
-        return hybrid_payload
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    hybrid_payload = convert_final_payload_to_hybrid_html(
+        request.final_payload,
+        include_inline_styles=request.include_inline_styles,
+    )
+    return hybrid_payload
 
 @app.post("/api/v1/generate_full_article_hybrid_html", tags=["End-to-End Orchestrator"])
 async def generate_full_article_hybrid_html(
@@ -650,38 +632,33 @@ async def generate_full_article_hybrid_html(
     """
     Enqueues a background job to generate a full article with hybrid HTML.
     """
-    try:
-        if over_free_tier_limit(current_user):
-            raise HTTPException(
-                status_code=402,
-                detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
-            )
-        from uuid import uuid4
-        job_id = uuid4().hex
-        jobs_col = get_jobs_collection()
-        job_doc = {
-            "_id": job_id,
-            "user_id": current_user["id"],
-            "topic": request.topic,
-            "image_source": request.image_source,
-            "include_inline_styles": request.include_inline_styles,
-            "word_count_target": request.word_count_target,
-            "image_count": request.image_count,
-            "image_spacing": request.image_spacing,
-            "status": "queued",
-            "current_step": "keywords",
-            "created_at": utc_now_iso(),
-            "started_at": None,
-            "completed_at": None,
-            "error_message": None,
-            "result_article_id": None
-        }
-        jobs_col.insert_one(job_doc)
-        return {"job_id": job_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if over_free_tier_limit(current_user):
+        raise HTTPException(
+            status_code=402,
+            detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
+        )
+    from uuid import uuid4
+    job_id = uuid4().hex
+    jobs_col = get_jobs_collection()
+    job_doc = {
+        "_id": job_id,
+        "user_id": current_user["id"],
+        "topic": request.topic,
+        "image_source": request.image_source,
+        "include_inline_styles": request.include_inline_styles,
+        "word_count_target": request.word_count_target,
+        "image_count": request.image_count,
+        "image_spacing": request.image_spacing,
+        "status": "queued",
+        "current_step": "keywords",
+        "created_at": utc_now_iso(),
+        "started_at": None,
+        "completed_at": None,
+        "error_message": None,
+        "result_article_id": None
+    }
+    jobs_col.insert_one(job_doc)
+    return {"job_id": job_id}
 
 @app.get("/api/v1/jobs/{job_id}", tags=["Jobs"])
 async def get_job_status(
@@ -692,21 +669,16 @@ async def get_job_status(
     Get the status of a background article generation job.
     Users can only retrieve their own jobs; returns 404 if job is not found or not owned by user.
     """
-    try:
-        jobs_col = get_jobs_collection()
-        job = jobs_col.find_one({"_id": job_id})
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
+    jobs_col = get_jobs_collection()
+    job = jobs_col.find_one({"_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
         
-        # Auth: verify the job belongs to the authenticated user
-        if job.get("user_id") != current_user["id"]:
-            raise HTTPException(status_code=404, detail="Job not found")
+    # Auth: verify the job belongs to the authenticated user
+    if job.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=404, detail="Job not found")
         
-        return job
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return job
 
 @app.post("/api/v1/schedule_article", tags=["End-to-End Orchestrator"])
 async def schedule_article(
@@ -717,41 +689,36 @@ async def schedule_article(
     Schedules an article to be generated and published in the future.
     Authenticated users can only schedule articles for themselves.
     """
-    try:
-        if over_free_tier_limit(current_user):
-            raise HTTPException(
-                status_code=402,
-                detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
-            )
-        from uuid import uuid4
-        job_id = uuid4().hex
-        jobs_col = get_jobs_collection()
-        job_doc = {
-            "_id": job_id,
-            "user_id": current_user["id"],
-            "topic": request.topic,
-            "image_source": request.image_source,
-            "include_inline_styles": request.include_inline_styles,
-            "word_count_target": request.word_count_target,
-            "image_count": request.image_count,
-            "image_spacing": request.image_spacing,
-            "status": "scheduled",
-            "current_step": "keywords",
-            "created_at": utc_now_iso(),
-            "scheduled_at": request.scheduled_at,
-            "auto_publish": request.auto_publish,
-            "publish_target": request.publish_target,
-            "started_at": None,
-            "completed_at": None,
-            "error_message": None,
-            "result_article_id": None
-        }
-        jobs_col.insert_one(job_doc)
-        return {"job_id": job_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if over_free_tier_limit(current_user):
+        raise HTTPException(
+            status_code=402,
+            detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
+        )
+    from uuid import uuid4
+    job_id = uuid4().hex
+    jobs_col = get_jobs_collection()
+    job_doc = {
+        "_id": job_id,
+        "user_id": current_user["id"],
+        "topic": request.topic,
+        "image_source": request.image_source,
+        "include_inline_styles": request.include_inline_styles,
+        "word_count_target": request.word_count_target,
+        "image_count": request.image_count,
+        "image_spacing": request.image_spacing,
+        "status": "scheduled",
+        "current_step": "keywords",
+        "created_at": utc_now_iso(),
+        "scheduled_at": request.scheduled_at,
+        "auto_publish": request.auto_publish,
+        "publish_target": request.publish_target,
+        "started_at": None,
+        "completed_at": None,
+        "error_message": None,
+        "result_article_id": None
+    }
+    jobs_col.insert_one(job_doc)
+    return {"job_id": job_id}
 
 @app.get("/api/v1/jobs", tags=["Jobs"])
 async def list_jobs(
@@ -761,15 +728,12 @@ async def list_jobs(
     """
     Returns the authenticated user's jobs, optionally filtered by status.
     """
-    try:
-        jobs_col = get_jobs_collection()
-        query: Dict[str, Any] = {"user_id": current_user["id"]}
-        if status:
-            query["status"] = status
-        jobs = list(jobs_col.find(query).sort("created_at", -1))
-        return {"jobs": jobs}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    jobs_col = get_jobs_collection()
+    query: Dict[str, Any] = {"user_id": current_user["id"]}
+    if status:
+        query["status"] = status
+    jobs = list(jobs_col.find(query).sort("created_at", -1))
+    return {"jobs": jobs}
 
 @app.delete("/api/v1/jobs/{job_id}", tags=["Jobs"])
 async def delete_job(
@@ -779,21 +743,16 @@ async def delete_job(
     """
     Permanently deletes/cancels a job owned by the current user.
     """
-    try:
-        jobs_col = get_jobs_collection()
-        job = jobs_col.find_one({"_id": job_id})
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        if job.get("user_id") != current_user["id"]:
-            raise HTTPException(status_code=403, detail="Not your job")
-        if job.get("status") not in ["scheduled", "queued"]:
-            raise HTTPException(status_code=400, detail="Cannot cancel a job that is already processing, completed, or failed")
-        jobs_col.delete_one({"_id": job_id})
-        return {"ok": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    jobs_col = get_jobs_collection()
+    job = jobs_col.find_one({"_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not your job")
+    if job.get("status") not in ["scheduled", "queued"]:
+        raise HTTPException(status_code=400, detail="Cannot cancel a job that is already processing, completed, or failed")
+    jobs_col.delete_one({"_id": job_id})
+    return {"ok": True}
 
 @app.post("/api/v1/batches", tags=["Batches"])
 async def create_batch(
@@ -804,86 +763,90 @@ async def create_batch(
     Submits a batch list of multiple article topics at once.
     Authenticated users can only create batches for themselves.
     """
-    try:
-        from uuid import uuid4
-        from datetime import datetime, timedelta, timezone
+    if over_free_tier_limit(current_user):
+        raise HTTPException(
+            status_code=402,
+            detail="Free tier limit reached (5 articles). Upgrade to continue generating articles.",
+        )
+    from uuid import uuid4
+    from datetime import datetime, timedelta, timezone
         
-        batch_id = uuid4().hex
-        batches_col = get_batches_collection()
-        jobs_col = get_jobs_collection()
+    batch_id = uuid4().hex
+    batches_col = get_batches_collection()
+    jobs_col = get_jobs_collection()
         
-        # Insert batch summary document
-        batch_doc = {
-            "_id": batch_id,
-            "user_id": current_user["id"],
-            "name": request.name or f"Batch - {utc_now_iso()}",
-            "created_at": utc_now_iso(),
-            "total_count": len(request.topics),
-            "completed_count": 0,
-            "failed_count": 0
-        }
-        batches_col.insert_one(batch_doc)
+    # Insert batch summary document
+    batch_doc = {
+        "_id": batch_id,
+        "user_id": current_user["id"],
+        "name": request.name or f"Batch - {utc_now_iso()}",
+        "created_at": utc_now_iso(),
+        "total_count": len(request.topics),
+        "completed_count": 0,
+        "failed_count": 0
+    }
+    batches_col.insert_one(batch_doc)
         
-        # Parse start scheduled time or now
-        base_time = None
-        if request.scheduled_at:
-            try:
-                clean_iso = request.scheduled_at.replace("Z", "+00:00")
-                base_time = datetime.fromisoformat(clean_iso)
-            except Exception:
-                base_time = datetime.now(timezone.utc)
-        else:
-            base_time = datetime.now(timezone.utc)
+    # Parse start scheduled time or now
+    if request.scheduled_at:
+        try:
+            clean_iso = request.scheduled_at.replace("Z", "+00:00")
+            base_time = datetime.fromisoformat(clean_iso)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid scheduled_at value: {request.scheduled_at!r} (expected ISO 8601)",
+            )
+    else:
+        base_time = datetime.now(timezone.utc)
             
-        job_docs = []
-        for idx, topic in enumerate(request.topics):
-            job_id = uuid4().hex
-            user_id = current_user["id"]  # Auth: use authenticated user's ID
+    job_docs = []
+    for idx, topic in enumerate(request.topics):
+        job_id = uuid4().hex
+        user_id = current_user["id"]  # Auth: use authenticated user's ID
             
-            # Determine scheduled time for this job
-            job_scheduled_at = None
-            job_status = "queued"
+        # Determine scheduled time for this job
+        job_scheduled_at = None
+        job_status = "queued"
             
-            if request.stagger_minutes is not None and request.stagger_minutes > 0:
-                scheduled_time = base_time + timedelta(minutes=idx * request.stagger_minutes)
-                job_scheduled_at = scheduled_time.isoformat().replace("+00:00", "Z")
-                job_status = "scheduled"
-            elif request.scheduled_at:
-                job_scheduled_at = request.scheduled_at
-                job_status = "scheduled"
+        if request.stagger_minutes is not None and request.stagger_minutes > 0:
+            scheduled_time = base_time + timedelta(minutes=idx * request.stagger_minutes)
+            job_scheduled_at = scheduled_time.isoformat().replace("+00:00", "Z")
+            job_status = "scheduled"
+        elif request.scheduled_at:
+            job_scheduled_at = request.scheduled_at
+            job_status = "scheduled"
                 
-            job_doc = {
-                "_id": job_id,
-                "batch_id": batch_id,
-                "user_id": user_id,
-                "topic": topic,
-                "image_source": request.image_source,
-                "include_inline_styles": request.include_inline_styles,
-                "word_count_target": request.word_count_target,
-                "image_count": request.image_count,
-                "image_spacing": request.image_spacing,
-                "status": job_status,
-                "current_step": "keywords",
-                "created_at": utc_now_iso(),
-                "scheduled_at": job_scheduled_at,
-                "auto_publish": request.auto_publish,
-                "publish_target": None,
-                "started_at": None,
-                "completed_at": None,
-                "error_message": None,
-                "result_article_id": None,
-                "retry_count": 0,
-                "auto_publish_failed": False,
-                "job_cost": _job_cost_defaults(),
-            }
-            job_docs.append(job_doc)
+        job_doc = {
+            "_id": job_id,
+            "batch_id": batch_id,
+            "user_id": user_id,
+            "topic": topic,
+            "image_source": request.image_source,
+            "include_inline_styles": request.include_inline_styles,
+            "word_count_target": request.word_count_target,
+            "image_count": request.image_count,
+            "image_spacing": request.image_spacing,
+            "status": job_status,
+            "current_step": "keywords",
+            "created_at": utc_now_iso(),
+            "scheduled_at": job_scheduled_at,
+            "auto_publish": request.auto_publish,
+            "publish_target": None,
+            "started_at": None,
+            "completed_at": None,
+            "error_message": None,
+            "result_article_id": None,
+            "retry_count": 0,
+            "auto_publish_failed": False,
+            "job_cost": _job_cost_defaults(),
+        }
+        job_docs.append(job_doc)
             
-        if job_docs:
-            jobs_col.insert_many(job_docs)
-            
-        return {"batch_id": batch_id}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if job_docs:
+        jobs_col.insert_many(job_docs)
+
+    return {"batch_id": batch_id}
 
 @app.get("/api/v1/batches/{batch_id}", tags=["Batches"])
 async def get_batch(
@@ -894,29 +857,24 @@ async def get_batch(
     Get the summary of a batch job and its individual article generation jobs.
     Users can only retrieve their own batches; returns 404 if batch is not found or not owned by user.
     """
-    try:
-        batches_col = get_batches_collection()
-        jobs_col = get_jobs_collection()
+    batches_col = get_batches_collection()
+    jobs_col = get_jobs_collection()
         
-        batch = batches_col.find_one({"_id": batch_id})
-        if not batch:
-            raise HTTPException(status_code=404, detail="Batch not found")
+    batch = batches_col.find_one({"_id": batch_id})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
         
-        # Auth: verify the batch belongs to the authenticated user
-        if batch.get("user_id") != current_user["id"]:
-            raise HTTPException(status_code=404, detail="Batch not found")
+    # Auth: verify the batch belongs to the authenticated user
+    if batch.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=404, detail="Batch not found")
             
-        # Fetch all jobs in this batch
-        jobs = list(jobs_col.find({"batch_id": batch_id, "user_id": current_user["id"]}).sort("created_at", 1))
+    # Fetch all jobs in this batch
+    jobs = list(jobs_col.find({"batch_id": batch_id, "user_id": current_user["id"]}).sort("created_at", 1))
         
-        return {
-            "batch": batch,
-            "jobs": jobs
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "batch": batch,
+        "jobs": jobs
+    }
 
 @app.post("/api/v1/jobs/{job_id}/retry", tags=["Jobs"])
 async def retry_job(
@@ -926,43 +884,40 @@ async def retry_job(
     """
     Retry a failed job by resubmitting the same batch item as a new queued job.
     """
-    try:
-        jobs_col = get_jobs_collection()
-        original_job = jobs_col.find_one({"_id": job_id, "user_id": current_user["id"]})
-        if not original_job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        if original_job.get("status") != "failed":
-            raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
+    jobs_col = get_jobs_collection()
+    original_job = jobs_col.find_one({"_id": job_id, "user_id": current_user["id"]})
+    if not original_job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if original_job.get("status") != "failed":
+        raise HTTPException(status_code=400, detail="Only failed jobs can be retried")
 
-        retry_count = int(original_job.get("retry_count") or 0)
-        if retry_count >= 2:
-            raise HTTPException(status_code=400, detail="Retry limit reached")
+    retry_count = int(original_job.get("retry_count") or 0)
+    if retry_count >= 2:
+        raise HTTPException(status_code=400, detail="Retry limit reached")
 
-        from uuid import uuid4
-        new_job_id = uuid4().hex
-        retry_doc = {
-            **{k: v for k, v in original_job.items() if k not in ["_id", "created_at", "started_at", "completed_at", "error_message", "result_article_id", "status", "current_step", "retry_count", "auto_publish_failed"]},
-            "_id": new_job_id,
-            "status": "queued",
-            "current_step": "keywords",
-            "created_at": utc_now_iso(),
-            "started_at": None,
-            "completed_at": None,
-            "error_message": None,
-            "result_article_id": None,
-            "retry_count": retry_count + 1,
-            "auto_publish_failed": False,
-            "job_cost": _job_cost_defaults(),
-        }
-        jobs_col.insert_one(retry_doc)
-        return {"job_id": new_job_id, "retry_count": retry_doc["retry_count"]}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    from uuid import uuid4
+    new_job_id = uuid4().hex
+    # Resume from the step where the job failed, not from keywords
+    failed_step = original_job.get("current_step", "keywords")
+    retry_doc = {
+        **{k: v for k, v in original_job.items() if k not in ["_id", "created_at", "started_at", "completed_at", "error_message", "result_article_id", "status", "current_step", "retry_count", "auto_publish_failed"]},
+        "_id": new_job_id,
+        "status": "queued",
+        "current_step": failed_step,
+        "created_at": utc_now_iso(),
+        "started_at": None,
+        "completed_at": None,
+        "error_message": None,
+        "result_article_id": None,
+        "retry_count": retry_count + 1,
+        "auto_publish_failed": False,
+        "job_cost": _job_cost_defaults(),
+    }
+    jobs_col.insert_one(retry_doc)
+    return {"job_id": new_job_id, "retry_count": retry_doc["retry_count"]}
 
-def _require_owner_or_admin(request: Request, article: Dict[str, Any]) -> Dict[str, Any] | None:
-    """Returns the decoded token payload if the caller owns `article` or is admin, else None."""
+def _decode_bearer_token(request: Request) -> Dict[str, Any] | None:
+    """Returns the decoded access-token payload from an optional bearer header, else None."""
     auth_header = request.headers.get("authorization") if request else None
     if not auth_header or not auth_header.lower().startswith("bearer "):
         return None
@@ -972,6 +927,14 @@ def _require_owner_or_admin(request: Request, article: Dict[str, Any]) -> Dict[s
     except HTTPException:
         return None
     if payload.get("type") != "access" or not payload.get("sub"):
+        return None
+    return payload
+
+
+def _require_owner_or_admin(request: Request, article: Dict[str, Any]) -> Dict[str, Any] | None:
+    """Returns the decoded token payload if the caller owns `article` or is admin, else None."""
+    payload = _decode_bearer_token(request)
+    if not payload:
         return None
     if is_admin(payload.get("email", "")):
         return payload
@@ -986,39 +949,47 @@ async def get_saved_articles(
     request: Request = None,
 ):
     """
-    Public: returns all articles, no auth required.
+    Public: returns published articles, no auth required. Any other `status`
+    (e.g. "draft") is scoped to the caller's own articles, or all matching
+    articles if the caller is an admin — checked via an optional bearer token.
     """
-    try:
-        if slug:
-            article = get_article_by_slug(slug)
-            if not article:
-                raise HTTPException(status_code=404, detail="Article not found")
-            return {"article": article}
+    if slug:
+        article = get_article_by_slug(slug)
+        if not article:
+            raise HTTPException(status_code=404, detail="Article not found")
+        if article.get("status") != "published" and not _require_owner_or_admin(request, article):
+            raise HTTPException(status_code=404, detail="Article not found")
+        return {"article": article}
 
+    if not status or status == "published":
+        return {"articles": list_articles(status="published")}
+
+    # Non-published statuses (e.g. "draft") expose private content — scope
+    # to the caller's own articles unless they're an admin.
+    payload = _decode_bearer_token(request)
+    if not payload:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if is_admin(payload.get("email", "")):
         return {"articles": list_articles(status=status)}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {"articles": list_articles(status=status, user_id=payload["sub"])}
 
 @app.get("/api/v1/articles/{article_id}", tags=["Article Store"])
 async def get_saved_article(
     article_id: str,
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Returns a single saved article by id. Authenticated (dashboard/editor use only —
-    the public blog looks articles up by slug via GET /api/v1/articles?slug=...).
+    Returns a single saved article by id. Authenticated, and only the owner or
+    an admin may fetch it (the public blog looks articles up by slug via
+    GET /api/v1/articles?slug=...).
     """
-    try:
-        article = get_article_by_id(article_id)
-        if not article:
-            raise HTTPException(status_code=404, detail="Article not found")
-        return {"article": article}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    article = get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if not _require_owner_or_admin(request, article):
+        raise HTTPException(status_code=404, detail="Article not found")
+    return {"article": article}
 
 @app.post("/api/v1/articles", tags=["Article Store"])
 async def create_saved_article(
@@ -1028,27 +999,31 @@ async def create_saved_article(
     """
     Persists a generated article payload in MongoDB.
     """
-    try:
-        article = save_article(request.topic, request.payload, user_id=current_user["id"])
-        return {"ok": True, "article": article}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    article = save_article(request.topic, request.payload, user_id=current_user["id"])
+    return {"ok": True, "article": article}
 
 @app.post("/api/v1/articles/{article_id}/publish", tags=["Article Store"])
 async def publish_saved_article(
     article_id: str,
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Validates and publishes a saved article, making it publicly available.
+    Only the owner or an admin may publish it.
     """
     try:
+        existing = get_article_by_id(article_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Article not found")
+        if not _require_owner_or_admin(request, existing):
+            raise HTTPException(status_code=404, detail="Article not found")
         article = publish_article(article_id)
         return {"ok": True, "article": article}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/v1/articles/{article_id}/track-view", tags=["Article Store"])
 async def track_saved_article_view(article_id: str):
@@ -1061,43 +1036,50 @@ async def track_saved_article_view(article_id: str):
         return {"ok": True, "article": article}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/v1/articles/{article_id}", tags=["Article Store"])
 async def update_saved_article(
     article_id: str,
     request: ArticleUpdateRequest,
+    http_request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Updates a draft article payload and resets publish state so it can be republished.
+    Only the owner or an admin may update it.
     """
     try:
+        existing = get_article_by_id(article_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Article not found")
+        if not _require_owner_or_admin(http_request, existing):
+            raise HTTPException(status_code=404, detail="Article not found")
         article = update_article(article_id, request.topic, request.payload)
         return {"ok": True, "article": article}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/v1/articles/{article_id}", tags=["Article Store"])
 async def delete_saved_article(
     article_id: str,
+    request: Request,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Permanently deletes a saved article from MongoDB.
+    Permanently deletes a saved article from MongoDB. Only the owner or an
+    admin may delete it.
     """
-    try:
-        deleted = delete_article(article_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Article not found")
-        return {"ok": True}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    existing = get_article_by_id(article_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Article not found")
+    if not _require_owner_or_admin(request, existing):
+        raise HTTPException(status_code=404, detail="Article not found")
+    deleted = delete_article(article_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Article not found")
+    return {"ok": True}
 
 if __name__ == "__main__":
     import uvicorn

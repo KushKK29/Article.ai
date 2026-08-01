@@ -1,11 +1,11 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following values before launch:
- * 1. Free Tier limit: 3 articles/month (Line 38)
- * 2. Pro Tier price and limit: $49/month, 50 articles/month (Line 46)
- * 3. Agency Tier price and limit: $149/month, 200 articles/month (Line 55)
- * 4. Refund policy: 14-day refund window, provided <5 articles were generated (Line 146)
- * 5. Credit policy: Failed runs do not consume credits (Line 137)
+ * 1. Free Tier limit: 3 articles/month
+ * 2. Pro Tier price and limit: $49/month, 50 articles/month
+ * 3. Agency Tier price and limit: $149/month, 200 articles/month
+ * 4. Refund policy: 14-day refund window, provided <5 articles were generated
+ * 5. Credit policy: Failed runs do not consume credits
  */
 
 import type { Metadata } from "next";

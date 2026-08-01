@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getBackendUrl } from "@/lib/backend";
 
 // ponytail: in-memory rate limit map; upgrade to Redis if throughput requires
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -47,7 +48,7 @@ export async function POST(request: Request) {
     }
 
     // Call Python email service (hardcoded recipient, prevents relay attacks)
-    const emailResponse = await fetch("http://localhost:8000/api/email/contact", {
+    const emailResponse = await fetch(getBackendUrl("/api/email/contact"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

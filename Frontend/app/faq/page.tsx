@@ -1,9 +1,9 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following details before launch:
- * 1. Image Licensing: Sourced from Unsplash and Google Search (Line 41)
- * 2. Uniqueness guarantee: No automated plagiarism verification in app; users advised to run scans (Line 61)
- * 3. Scheduling support: Stagger scheduler available on Pro and Agency tiers (Line 51)
+ * 1. Image Licensing: Sourced from Unsplash and Google Search
+ * 2. Uniqueness guarantee: No automated plagiarism verification in app; users advised to run scans
+ * 3. Scheduling support: Stagger scheduler available on Pro and Agency tiers
  */
 
 import type { Metadata } from "next";

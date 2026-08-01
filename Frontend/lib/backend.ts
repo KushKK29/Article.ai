@@ -11,3 +11,14 @@ export function getBackendUrl(pathname: string) {
   const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
   return `${getBackendBaseUrl()}${normalizedPath}`;
 }
+
+// Parses the backend response body as JSON, tolerating non-JSON bodies (e.g. a
+// proxy/cold-start 502/504 or an HTML error page) instead of throwing and
+// collapsing the real upstream status into a generic 500.
+export async function parseBackendResponse(response: Response): Promise<any> {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}

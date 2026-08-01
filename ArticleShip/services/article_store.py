@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import zlib
@@ -13,6 +14,7 @@ from pymongo import MongoClient
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 
 _CONTENT_COMPRESSION_PREFIX = "zlib64:"
 
@@ -168,8 +170,10 @@ def _decompress_content(value: Any) -> str:
     try:
         compressed = b64decode(encoded)
         return zlib.decompress(compressed).decode("utf-8")
-    except Exception:
-        # If decode fails, return the original string to avoid hard-read failures.
+    except Exception as e:
+        # If decode fails, return the original string to avoid hard-read failures —
+        # but log it, since this means an article's content is silently corrupted.
+        logger.error("Failed to decompress article content: %s", e)
         return value
 
 

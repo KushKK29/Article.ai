@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/lib/backend";
+import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
 type RouteContext = {
   params: { id: string };
@@ -17,14 +17,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
       headers,
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
 
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to fetch article" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error("failed to fetch article:", error);
     const message = error instanceof Error ? error.message : "failed to fetch article";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -45,14 +46,15 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       body: JSON.stringify(body),
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
 
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to update article" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error("failed to update article:", error);
     const message = error instanceof Error ? error.message : "failed to update article";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -71,14 +73,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       headers,
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
 
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to delete article" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error("failed to delete article:", error);
     const message = error instanceof Error ? error.message : "failed to delete article";
     return NextResponse.json({ error: message }, { status: 500 });
   }

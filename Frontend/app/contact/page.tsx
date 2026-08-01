@@ -1,8 +1,8 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following values before launch:
- * 1. SLA Response Time: 24 hours (Line 41)
- * 2. Primary email backup: support@articleship.com (Line 137)
+ * 1. SLA Response Time: 24 hours
+ * 2. Primary email backup: support@articleship.com
  */
 
 "use client";

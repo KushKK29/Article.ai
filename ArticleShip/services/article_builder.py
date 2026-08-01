@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ── Explicitly pick the provider/model this service uses ──────────────────
-# provider: "gemini" | "openrouter" | "nvidia"
+# provider: "gemini" | "openrouter" | "nvidia" | "qwen"
 LLM_PROVIDER = "gemini"
 LLM_MODEL = "gemini-3-flash-preview"
 
@@ -904,6 +904,14 @@ async def generate_article_content(
             formatted = ""
         if formatted:
             search_context = formatted
+        else:
+            # Total grounding failure — matches keyword_engine.py/structure_builder.py:
+            # raise rather than write article content with zero live search signal.
+            logger.error("Article generation aborted for '%s': no search context from any provider.", topic)
+            raise RuntimeError(
+                "Article content retrieval failed — no search context available from DuckDuckGo or "
+                "Tavily/Exa. Cannot generate grounded article content without live search signal."
+            )
 
     style_guidance = await asyncio.to_thread(_get_style_guidance_block, topic)
     prompt = build_prompt(

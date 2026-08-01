@@ -11,7 +11,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # ── Explicitly pick the provider/model this service uses ──────────────────
-# provider: "gemini" | "openrouter" | "nvidia"
+# provider: "gemini" | "openrouter" | "nvidia" | "qwen"
 LLM_PROVIDER = "gemini"
 LLM_MODEL = "gemini-3-flash-preview"
 
@@ -81,7 +81,7 @@ def _retrieve_context_sync(topic: str) -> str:
                 break
 
     except Exception as e:
-        print(f"DuckDuckGo search failed: {e}")
+        logger.error("DuckDuckGo search failed: %s", e)
 
     return "\n\n---\n\n".join(snippets) if snippets else "No context available."
 

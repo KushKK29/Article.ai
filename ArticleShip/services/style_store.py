@@ -1,3 +1,4 @@
+import logging
 import os
 import zlib
 from base64 import b64decode, b64encode
@@ -12,6 +13,8 @@ from pymongo import MongoClient
 
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 _TEXT_COMPRESSION_PREFIX = "zlib64:"
 _GLOBAL_PROFILE_NAME = "global"
@@ -59,7 +62,8 @@ def _decompress(value: Any) -> str:
     try:
         encoded = value[len(_TEXT_COMPRESSION_PREFIX):]
         return zlib.decompress(b64decode(encoded)).decode("utf-8")
-    except Exception:
+    except Exception as e:
+        logger.error("Failed to decompress style text: %s", e)
         return value
 
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/lib/backend";
+import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,14 +16,15 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(body),
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
 
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to create batch" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error("failed to create batch:", error);
     const message = error instanceof Error ? error.message : "failed to create batch";
     return NextResponse.json({ error: message }, { status: 500 });
   }

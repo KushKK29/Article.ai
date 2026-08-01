@@ -185,6 +185,20 @@ def update_user(user_id: str, fields: Dict[str, Any]) -> None:
     col.update_one({"id": user_id}, {"$set": fields})
 
 
+def apply_completion_credit(user_id: str) -> None:
+    """Increments usage.completed_jobs (feeds the free-tier cap in services/privileges.py)
+    and credits (currently write-only — no code reads it back; the frontend's
+    "credits" display is a separate derived value based on usage.completed_jobs)."""
+    col = _get_users_collection()
+    col.update_one({"id": user_id}, {"$inc": {"credits": 1, "usage.completed_jobs": 1}})
+
+
+def apply_failure_usage(user_id: str) -> None:
+    """Increments usage.failed_jobs (tracking only — not read by any free-tier or billing logic)."""
+    col = _get_users_collection()
+    col.update_one({"id": user_id}, {"$inc": {"usage.failed_jobs": 1}})
+
+
 def is_verified(user: Dict[str, Any]) -> bool:
     # Accounts created before OTP verification existed have no "verified"
     # field at all — treat those as already verified so nobody already

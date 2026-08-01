@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ContentBlock } from "@/lib/types";
+import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
-const LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000";
-const PRODUCTION_BACKEND_BASE_URL = "https://article-ai-fs42.onrender.com";
 const HYBRID_ENDPOINT_PATH = "/api/v1/generate_full_article_hybrid_html";
-
-function getBackendEndpointUrl() {
-  const configuredBase =
-    process.env.BACKEND_BASE_URL ??
-    process.env.BACKEND_API_URL ??
-    (process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_BASE_URL : LOCAL_BACKEND_BASE_URL);
-  const normalizedBase = configuredBase.replace(/\/+$/, "");
-  return `${normalizedBase}${HYBRID_ENDPOINT_PATH}`;
-}
 
 function buildStructureFromBlocks(blocks: ContentBlock[]) {
   let h1 = "Generated Article";
@@ -55,7 +45,7 @@ export async function POST(request: NextRequest) {
 
     const imageSource = ai_generated === true ? "ai" : "stock";
 
-    const backendUrl = getBackendEndpointUrl();
+    const backendUrl = getBackendUrl(HYBRID_ENDPOINT_PATH);
 
     const authHeader = request.headers.get("Authorization");
     const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -91,9 +81,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload = await backendResponse.json();
+    const payload = await parseBackendResponse(backendResponse);
+    if (!payload) {
+      console.error("Unknown generation error: non-JSON success response from backend");
+      return NextResponse.json({ error: "Unexpected response from backend" }, { status: 502 });
+    }
     return NextResponse.json({ job_id: payload.job_id });
   } catch (error) {
+    console.error("Unknown generation error:", error);
     const message = error instanceof Error ? error.message : "Unknown generation error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

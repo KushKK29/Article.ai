@@ -397,7 +397,7 @@ def convert_final_payload_to_hybrid_html(
     Handles:
       - All heading levels (H1–H4) as proper semantic tags
       - Images with model-hinted ALT text (overrides generic Unsplash alt)
-      - [SOURCE: ...] placeholders → superscript citation badges
+      - [SOURCE: ...] placeholders → inline citation anchor tags
       - [INTERNAL LINK: ...] placeholders → styled anchor tags with data-topic attr
       - [IMAGE ALT: ...] markers → extracted and applied to <img>, stripped from body
       - META_DESCRIPTION: line → stripped from content if model leaked it into last block
@@ -406,7 +406,7 @@ def convert_final_payload_to_hybrid_html(
       - Optional inline styles (include_inline_styles=False for CSS-in-class-only output)
 
     Args:
-        final_payload:         Output from format_final_article() in pipeline.py
+        final_payload:         Output from format_final_article() in final_formatter.py
         include_inline_styles: If True, add minimal inline CSS for immediate rendering.
                                Set False if you have a full CSS stylesheet.
 

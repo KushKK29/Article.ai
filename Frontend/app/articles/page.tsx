@@ -98,6 +98,7 @@ function ArticlesPageContent() {
         const data = await res.json();
         setArticles(data.articles || []);
       } catch (err) {
+        console.error("Failed to load articles:", err);
         setError(true);
       } finally {
         setLoading(false);

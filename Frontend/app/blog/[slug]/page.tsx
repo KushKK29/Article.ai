@@ -342,7 +342,9 @@ export default async function BlogArticlePage({
     <section className="scroll-smooth bg-[var(--paper)] text-[var(--ink)] min-h-screen py-16 selection:bg-[var(--highlight)] selection:text-[#0B132B]">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        // JSON.stringify doesn't escape "<", so a "</script>" in LLM-generated
+        // title/description text could break out of this tag — escape it.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <div className="mx-auto w-full max-w-[1380px] px-6">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[260px_minmax(0,1fr)_260px]">

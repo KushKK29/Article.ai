@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000";
-const PRODUCTION_BACKEND_BASE_URL = "https://article-ai-fs42.onrender.com";
+import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
 function backendArticlesUrl() {
-  const fallbackBase = process.env.NODE_ENV === "production" ? PRODUCTION_BACKEND_BASE_URL : LOCAL_BACKEND_BASE_URL;
-  const base = (process.env.BACKEND_BASE_URL ?? fallbackBase).replace(/\/+$/, "");
-  return `${base}/api/v1/articles`;
+  return getBackendUrl("/api/v1/articles");
 }
 
 export async function GET(request: NextRequest) {
@@ -22,12 +18,13 @@ export async function GET(request: NextRequest) {
       headers,
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "failed to fetch articles" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
     return NextResponse.json({ articles: data.articles ?? [] });
   } catch (error) {
+    console.error("failed to fetch articles:", error);
     const message = error instanceof Error ? error.message : "failed to fetch articles";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -52,12 +49,13 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ topic, payload }),
       cache: "no-store"
     });
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "save failed" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
     return NextResponse.json(data);
   } catch (error) {
+    console.error("save failed:", error);
     const message = error instanceof Error ? error.message : "save failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

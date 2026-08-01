@@ -1,13 +1,13 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from services.search.config import USAGE_FILE, PROVIDER_LIMITS
 
 logger = logging.getLogger(__name__)
 
 def _get_current_month() -> str:
     """Returns current month in YYYY-MM format."""
-    return datetime.utcnow().strftime("%Y-%m")
+    return datetime.now(timezone.utc).strftime("%Y-%m")
 
 def _initialize_usage_file() -> dict:
     """Creates a fresh usage.json with 0 values and the current month."""
@@ -35,7 +35,7 @@ def get_usage() -> dict:
     try:
         with open(USAGE_FILE, "r") as f:
             data = json.load(f)
-    except (json.JSONDecodeError, Exception) as e:
+    except json.JSONDecodeError as e:
         logger.warning(f"Malformed usage file, re-initializing: {e}")
         return _initialize_usage_file()
 

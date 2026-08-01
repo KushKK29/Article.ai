@@ -1,9 +1,9 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following details before launch:
- * 1. Founder name: Kush Goel (Line 31)
- * 2. Story details: Frustrations with existing tools (hours wasted on outline generation, robotic content) (Line 36)
- * 3. Pipeline explanation: Keyword clustering, semantic structure outline, deep text generation, captioned plate image sourcing (Line 60)
+ * 1. Founder name: Kush Goel
+ * 2. Story details: Frustrations with existing tools (hours wasted on outline generation, robotic content)
+ * 3. Pipeline explanation: Keyword clustering, semantic structure outline, deep text generation, captioned plate image sourcing
  */
 
 import type { Metadata } from "next";

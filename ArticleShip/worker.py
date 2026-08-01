@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from services.article_store import get_jobs_collection, utc_now_iso, save_article, list_articles_by_category, publish_article, get_batches_collection
+from services.auth import apply_completion_credit, apply_failure_usage
 from services.keyword_engine import generate_seo_keywords
 from services.structure_builder import build_article_structure
 from services.article_builder import generate_article_content, select_related_articles
@@ -54,12 +55,19 @@ async def process_job(job, jobs_col):
     job_id = job["_id"]
     topic = job["topic"]
     logger.info(f"Starting job {job_id} for topic: {topic}")
-    
+    # gemini_calls increments right after each Gemini call completes, so a job
+    # that fails partway through the pipeline records the calls it really made.
+    # image_calls is instead computed once, after the images step returns, by
+    # counting blocks that ended up with a real image.
+    gemini_calls = 0
+    image_calls = 0
+
     try:
         # Step 1: Keywords
         logger.info(f"Job {job_id}: current_step=keywords")
-        # Step already set to keywords during claim, but let's be explicit and update if needed
+        # current_step is already "keywords" from job creation — no update needed here.
         seo_data = await generate_seo_keywords(topic)
+        gemini_calls += 1
         category = seo_data.get("category", "General")
         
         # Step 2: Outline
@@ -79,6 +87,7 @@ async def process_job(job, jobs_col):
             image_count=image_count,
             image_spacing=image_spacing
         )
+        gemini_calls += 1
 
         # Save resolved image slots and count back to the job document
         jobs_col.update_one(
@@ -103,6 +112,7 @@ async def process_job(job, jobs_col):
             related_articles=related_articles,
             word_count_target=job.get("word_count_target", 1500)
         )
+        gemini_calls += 1
         mapped_article = parse_markdown_to_mapping(raw_markdown)
         
         # Step 4: Images
@@ -111,10 +121,15 @@ async def process_job(job, jobs_col):
         ai_generated = (job.get("image_source") == "ai_generated" or job.get("image_source") == "ai")
         assigned_slots = job.get("assigned_image_slots") or structure.get("assigned_image_slots", [])
         blocks_with_images = await embed_images_in_article(
-            mapped_article, 
+            mapped_article,
             ai_generated=ai_generated,
             assigned_image_slots=assigned_slots
         )
+        image_calls = images_failed = 0
+        for b in blocks_with_images:
+            has_image = isinstance(b.get("image"), dict) and bool(b["image"].get("url"))
+            image_calls += has_image
+            images_failed += bool(b.get("is_image_slot")) and not has_image
         
         # Step 5: Formatting
         logger.info(f"Job {job_id}: current_step=formatting")
@@ -183,10 +198,16 @@ async def process_job(job, jobs_col):
                     "completed_at": utc_now_iso(),
                     "result_article_id": result_article_id,
                     "auto_publish_failed": auto_publish_failed,
-                    "job_cost": _merge_job_cost(job, gemini_calls=3, image_calls=1),
+                    "images_failed": images_failed,
+                    "job_cost": _merge_job_cost(job, gemini_calls=gemini_calls, image_calls=image_calls),
                 }
             }
         )
+        if job.get("user_id"):
+            try:
+                apply_completion_credit(job["user_id"])
+            except Exception as usage_err:
+                logger.error(f"Job {job_id}: failed to record completion credit for user {job['user_id']}: {usage_err}")
         logger.info(f"Successfully completed job {job_id}. Saved article ID: {saved_art['id']}")
         
         # Update parent batch if present
@@ -213,11 +234,16 @@ async def process_job(job, jobs_col):
                     "completed_at": utc_now_iso(),
                     "error_message": error_msg,
                     "auto_publish_failed": bool(job.get("auto_publish")),
-                    "job_cost": _merge_job_cost(job, gemini_calls=3, image_calls=1),
+                    "job_cost": _merge_job_cost(job, gemini_calls=gemini_calls, image_calls=image_calls),
                 }
             }
         )
-        
+        if job.get("user_id"):
+            try:
+                apply_failure_usage(job["user_id"])
+            except Exception as usage_err:
+                logger.error(f"Job {job_id}: failed to record failure usage for user {job['user_id']}: {usage_err}")
+
         # Update parent batch if present
         if job.get("batch_id"):
             try:

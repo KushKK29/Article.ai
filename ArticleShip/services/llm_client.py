@@ -5,7 +5,7 @@ Usage (in any service file):
 
     from services.llm_client import LLMClient
 
-    LLM_PROVIDER = "gemini"              # "gemini" | "openrouter" | "nvidia"
+    LLM_PROVIDER = "gemini"              # "gemini" | "openrouter" | "nvidia" | "qwen"
     LLM_MODEL = "gemini-3-flash-preview"
 
     client = LLMClient(LLM_PROVIDER, LLM_MODEL)
@@ -16,6 +16,7 @@ Provider docs / model catalogs:
   - Gemini:     https://ai.google.dev/gemini-api/docs/models
   - OpenRouter: https://openrouter.ai/models   (model id, e.g. "openai/gpt-4o-mini")
   - NVIDIA NIM: https://build.nvidia.com/models (model id, e.g. "meta/llama-3.1-70b-instruct")
+  - Qwen:       https://dashscope.aliyuncs.com  (model id, e.g. "qwen-plus")
 """
 
 import os
@@ -264,6 +265,30 @@ class LLMClient:
                     max_output_tokens *= 2
                 else:
                     logger.warning("JSON parse failed (attempt %d): %s", attempt + 1, e)
+
+        # All retries exhausted on primary provider; try fallback chain
+        for fallback_client in _get_fallback_clients():
+            logger.info(
+                "Primary provider exhausted; falling back to %s/%s for JSON generation.",
+                fallback_client.provider, fallback_client.model,
+            )
+            try:
+                response = fallback_client.generate(
+                    prompt,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    json_mode=True,
+                )
+                raw = re.sub(r"^```(?:json)?\s*", "", (response.text or "").strip())
+                raw = re.sub(r"\s*```$", "", raw).strip()
+                return json.loads(raw)
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    "Fallback %s/%s also failed to parse JSON: %s",
+                    fallback_client.provider, fallback_client.model, e,
+                )
+                last_error = e
+
         raise ValueError(
-            f"LLM returned unparseable JSON after {retries + 1} attempt(s): {last_error}"
+            f"LLM returned unparseable JSON after {retries + 1} attempt(s) on primary provider and all fallbacks: {last_error}"
         )

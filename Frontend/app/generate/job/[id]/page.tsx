@@ -65,6 +65,10 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
   const [article, setArticle] = useState<ArticleResponse["article"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pollingErrorCount, setPollingErrorCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const jobId = params.id;
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,6 +101,7 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
           }
         }
       } catch (err) {
+        console.error("Job status poll failed:", err);
         setPollingErrorCount((prev) => prev + 1);
         if (pollingErrorCount > 5) {
           setError(err instanceof Error ? err.message : "Error connecting to server");
@@ -121,10 +126,51 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
     if (!job) return 0;
     if (job.status === "completed") return STEPS.length;
     if (job.status === "queued") return 0;
-    
+
     const index = STEPS.findIndex((s) => s.name === job.current_step);
     return index !== -1 ? index : 0;
   })();
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    setRetryError(null);
+    try {
+      const response = await authFetch(`/api/jobs/${jobId}/retry`, {
+        method: "POST",
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to retry job");
+      }
+      // Redirect to the new job's status page
+      router.push(`/generate/job/${data.job_id}`);
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : "Error retrying job");
+      setIsRetrying(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!article) return;
+    setIsPublishing(true);
+    setPublishError(null);
+    try {
+      const response = await authFetch(`/api/articles/${article.id}/publish`, {
+        method: "POST",
+        cache: "no-store"
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to publish article");
+      }
+      // Refresh the page to show published state
+      window.location.reload();
+    } catch (err) {
+      setPublishError(err instanceof Error ? err.message : "Error publishing article");
+      setIsPublishing(false);
+    }
+  };
 
   return (
     <main className="min-h-screen bg-[var(--paper)] text-[var(--ink)] px-6 py-12 md:px-12 font-serif selection:bg-[var(--highlight)] selection:text-[#0B132B] max-w-[1000px] mx-auto">
@@ -201,7 +247,22 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
                   Cause: <span className="italic">{job.error_message || "Unknown typesetting failure."}</span>.<br />
                   Requesting manual editor intervention.
                 </p>
+                {retryError && (
+                  <p className="mt-2 text-rose-900 font-bold">Retry failed: {retryError}</p>
+                )}
                 <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={handleRetry}
+                    disabled={isRetrying}
+                    className={`rounded-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(192,38,38,1)] hover:shadow-none transition-all active:translate-y-0.5 ${
+                      isRetrying
+                        ? "bg-rose-400 text-rose-100 cursor-not-allowed opacity-60"
+                        : "bg-rose-800 text-white hover:bg-rose-900"
+                    }`}
+                    id="retry-job-btn"
+                  >
+                    {isRetrying ? "Retrying..." : "Retry Galley Run"}
+                  </button>
                   <Link href="/generate" className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-4 py-2 text-[10px] font-bold uppercase tracking-wider shadow-[2px_2px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5">
                     Return to Desk
                   </Link>
@@ -264,28 +325,45 @@ function JobStatusPageContent({ params }: { params: { id: string } }) {
           {/* Finished Article section */}
           {job.status === "completed" && article && (
             <div className="space-y-6" id="finished-article-container">
-              <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)] flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h2 className="font-serif text-lg font-extrabold text-[var(--ink)]">Manuscript Composition Complete</h2>
-                  <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">Ready for print layout, editor feedback, and publishing.</p>
-                  {job.resolved_image_count !== undefined && job.resolved_image_count !== null && job.image_count !== undefined && job.image_count !== null && (
-                    <p className="text-xs font-mono text-[var(--accent)] mt-2 font-bold" id="job-image-resolution-feedback">
-                      {job.resolved_image_count} images placed 
-                      {job.resolved_image_count < job.image_count && (
-                        <span> (your topic's outline didn't have enough sections to fit the requested {job.image_count})</span>
-                      )}
-                    </p>
-                  )}
+              <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-serif text-lg font-extrabold text-[var(--ink)]">Manuscript Composition Complete</h2>
+                    <p className="text-xs font-mono uppercase text-[var(--ink-muted)] mt-1">Ready for print layout, editor feedback, and publishing.</p>
+                    {job.resolved_image_count !== undefined && job.resolved_image_count !== null && job.image_count !== undefined && job.image_count !== null && (
+                      <p className="text-xs font-mono text-[var(--accent)] mt-2 font-bold" id="job-image-resolution-feedback">
+                        {job.resolved_image_count} images placed
+                        {job.resolved_image_count < job.image_count && (
+                          <span> (your topic's outline didn't have enough sections to fit the requested {job.image_count})</span>
+                        )}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={handlePublish}
+                      disabled={isPublishing}
+                      className={`rounded-none px-5 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[3px_3px_0px_rgba(34,197,94,1)] hover:shadow-none transition-all active:translate-y-0.5 ${
+                        isPublishing
+                          ? "bg-emerald-400 text-emerald-100 cursor-not-allowed opacity-60"
+                          : "bg-emerald-700 text-white hover:bg-emerald-800"
+                      }`}
+                      id="publish-article-btn"
+                    >
+                      {isPublishing ? "Publishing..." : "Publish to Press"}
+                    </button>
+                    <Link
+                      href={`/generate?articleId=${article.id}`}
+                      className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-5 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 text-center"
+                      id="edit-article-workbench-btn"
+                    >
+                      Open in Editor Desk &rarr;
+                    </Link>
+                  </div>
                 </div>
-                <div>
-                  <Link 
-                    href={`/generate?articleId=${article.id}`}
-                    className="rounded-none bg-[var(--ink)] text-[var(--paper)] px-5 py-3 text-xs font-mono font-bold uppercase tracking-wider shadow-[3px_3px_0px_rgba(29,78,216,1)] hover:shadow-none transition-all active:translate-y-0.5 block text-center"
-                    id="edit-article-workbench-btn"
-                  >
-                    Open in Editor Desk &rarr;
-                  </Link>
-                </div>
+                {publishError && (
+                  <p className="mt-4 text-rose-700 font-bold text-xs">Publish failed: {publishError}</p>
+                )}
               </div>
 
               <div className="bg-[var(--plate)] border-2 border-[var(--ink)] rounded-2xl p-6 md:p-8 shadow-[3px_3px_0px_var(--press-dark)]">

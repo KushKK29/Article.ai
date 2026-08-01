@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBackendUrl } from "@/lib/backend";
+import { getBackendUrl, parseBackendResponse } from "@/lib/backend";
 
 type RouteContext = {
   params: { id: string };
@@ -14,13 +14,14 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       cache: "no-store"
     });
 
-    const data = await response.json();
+    const data = await parseBackendResponse(response);
     if (!response.ok) {
-      return NextResponse.json({ error: data?.detail || "track view failed" }, { status: response.status });
+      return NextResponse.json({ error: data?.detail || `Upstream error (${response.status})` }, { status: response.status });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    console.error("track view failed:", error);
     const message = error instanceof Error ? error.message : "track view failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

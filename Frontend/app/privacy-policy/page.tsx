@@ -1,9 +1,9 @@
 /**
  * NOTE FOR USER REVIEW:
  * Please verify/confirm the following values before launch:
- * 1. Data deletion retention: 30 days (Line 59)
- * 2. Contact email: legal@articleship.com (Line 71)
- * 3. Third-party data policy: Confirm no data is sold to advertisers (Line 63)
+ * 1. Data deletion retention: 30 days
+ * 2. Contact email: legal@articleship.com
+ * 3. Third-party data policy: Confirm no data is sold to advertisers
  */
 
 import type { Metadata } from "next";
