@@ -1,420 +1,132 @@
-# Article.ai (ArticleShip) 🚀
+# Article.ai 🚀
 
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/Frontend-Next.js%2014-000000?style=flat&logo=nextdotjs)](https://nextjs.org/)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat&logo=python)](https://www.python.org/)
 [![MongoDB](https://img.shields.io/badge/Database-MongoDB-47A248?style=flat&logo=mongodb)](https://www.mongodb.com/)
-[![Tailwind CSS](https://img.shields.io/badge/Styling-Tailwind%20CSS-38B2AC?style=flat&logo=tailwindcss)](https://tailwindcss.com/)
 
-**Article.ai** (powered by **ArticleShip**) is a full-stack, enterprise-grade AI content generation and management platform designed to produce SEO-optimized, highly structured, E-E-A-T compliant articles at scale.
-
-It integrates keyword research, web search grounding, structure generation, automated RAG draft synthesis, multi-provider image fetching, hybrid HTML conversion, scheduled/staggered batch processing, and end-to-end user authentication and billing.
+**Article.ai** is a full-stack, AI-powered platform for generating and managing SEO-optimized, highly structured articles at scale. It combines automated SERP research, keyword intent analysis, multi-provider image fetching, hybrid HTML formatting, background batch processing, and built-in user authentication with Stripe billing.
 
 ---
 
 ## 📋 Table of Contents
 
-- [Overview](#-overview)
 - [Key Features](#-key-features)
-- [Pipeline Architecture](#-pipeline-architecture)
-- [Tech Stack](#-tech-stack)
-- [Repository Structure](#-repository-structure)
-- [Getting Started](#-getting-started)
+- [Architecture](#-architecture)
+- [Project Structure](#-project-structure)
+- [Quick Start](#-quick-start)
   - [Prerequisites](#prerequisites)
-  - [Backend Setup (ArticleShip)](#1-backend-setup-articleship)
-  - [Background Worker Setup](#2-background-worker-setup)
-  - [Frontend Setup](#3-frontend-setup)
-- [Environment Configuration](#-environment-configuration)
-- [API Architecture & Endpoints](#-api-architecture--endpoints)
-  - [Authentication & User Management](#authentication--user-management)
-  - [Article Generation Pipeline](#article-generation-pipeline)
-  - [Job Queue & Batch Execution](#job-queue--batch-execution)
-  - [Article Store & CMS](#article-store--cms)
-  - [Billing & Subscriptions](#billing--subscriptions)
-  - [Search & Grounding](#search--grounding)
-  - [Testing & Diagnostics](#testing--diagnostics)
-- [Multi-LLM Provider & Fallback Chain](#-multi-llm-provider--fallback-chain)
-- [Background Worker & Task Queue](#-background-worker--task-queue)
-- [Security & Authorization Model](#-security--authorization-model)
-- [Testing & Verification](#-testing--verification)
+  - [1. Backend & Worker Setup](#1-backend--worker-setup-articleship)
+  - [2. Frontend Setup](#2-frontend-setup-frontend)
+- [Environment Variables Summary](#-environment-variables-summary)
 - [License](#-license)
-
----
-
-## 🌟 Overview
-
-Article.ai transforms single topics or bulk keywords into complete, publication-ready articles. Unlike simple one-prompt generators, Article.ai runs a multi-stage pipeline:
-
-1. **Keyword Research & Intent Analysis**: Performs live search grounding to discover LSI keywords, long-tail terms, and search intent.
-2. **Structural Outline Synthesis**: Constructs a complete H1-H4 heading outline tailored to topic scope and word count targets.
-3. **RAG Context Retrieval & Generation**: Synthesizes in-depth content using real-time search context to eliminate hallucination.
-4. **Structured Image Embedding**: Automatically fetches relevant royalty-free stock imagery or generates custom AI images with proper placement and citations.
-5. **Hybrid CSS/HTML Exporting**: Generates clean, portable HTML with responsive CSS classes and optional inline styles for CMS or RSS syndication.
-6. **Asynchronous Batch Execution**: Runs long-running generations safely in a background worker queue with real-time status tracking and retry mechanisms.
 
 ---
 
 ## ✨ Key Features
 
-- 🎯 **SEO & E-E-A-T Optimization**: Keyword intent analysis, meta description generation, structured schema compatibility, and authoritative tone.
-- 🔄 **Multi-LLM Resiliency**: Automatic fallback chain across **Google Gemini**, **OpenRouter**, **NVIDIA NIM**, and **Qwen (DashScope)** for 99.9% generation uptime.
-- 📦 **Batch Article Generation**: Submit up to 20 topics at once with configurable time staggering (`stagger_minutes`) and scheduling (`scheduled_at`).
-- 🖼️ **Flexible Image Sourcing**: Support for Unsplash, Google Custom Search, and Pollen AI image generation with credit link attributions.
-- 🔒 **Secure Authentication**: OTP email verification, bcrypt password hashing, JWT access & refresh tokens, and support impersonation modes.
-- 💳 **Stripe Billing Integration**: Tiered subscription management (Free, Pro, Agency) with checkout sessions, customer portal, and webhooks.
-- 📊 **Article Management & CMS**: Complete CRUD operations, slug-based public access, view tracking, and draft-to-published workflow.
-- ⚡ **Real-time Job Tracking**: Polling and step-by-step progress tracking (`keywords` ➔ `outline` ➔ `content` ➔ `images` ➔ `formatting`).
+- 🎯 **SEO & E-E-A-T Generation**: Live search grounding for keyword clusters, LSI terms, and intent-focused article structures.
+- 🔄 **Multi-LLM Resilience**: Automated failover chain across **Google Gemini**, **OpenRouter**, **NVIDIA NIM**, and **Qwen**.
+- 📦 **Batch & Scheduled Queue**: Asynchronous processing for up to 20 topics with configurable staggering and scheduled execution.
+- 🖼️ **Stock & AI Media**: Automatic embedding of Unsplash, Google Custom Search, or AI-generated imagery with attribution metadata.
+- 🎨 **Hybrid HTML Output**: Portable HTML exports featuring structured CSS classes and inline styling for CMS or RSS publishing.
+- 🔒 **Auth & Billing**: Email OTP verification, JWT session handling, and Stripe subscription tier management.
 
 ---
 
-## 🏗️ Pipeline Architecture
+## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    A[User Input: Topic / Batch] --> B[Keyword Engine - RAG & Intent]
-    B -->|Keywords + Search Intent| C[Structure Builder - Outline & SERP]
-    C -->|H1-H4 Headings + Image Slots| D[RAG Content Generator]
-    D -->|Markdown Draft| E[Content Mapper - JSON Parsing]
-    E -->|Mapped Sections| F[Image Fetcher - Stock / AI]
-    F -->|Embedded Images + Citations| G[Final Formatter & SEO Scorer]
-    G -->|Final Payload| H[Hybrid HTML Converter]
-    H -->|HTML + Metadata| I[MongoDB Article Store]
-    
-    subgraph Async Worker Queue
-        J[FastAPI Endpoint] -->|Create Job| K[(MongoDB Queue)]
-        K -->|Atomic Claim| L[Background Worker]
-        L --> B
-    end
+    A[Frontend: Next.js 14] <-->|REST API / Proxy| B[Backend: FastAPI]
+    B <-->|Auth / Articles / Jobs| C[(MongoDB)]
+    B -->|Submit Async Jobs| D[Worker Queue]
+    D -->|Generation Pipeline| E[LLM Providers & Web Grounding]
+    E -->|Save Generated Article| C
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 📂 Project Structure
 
-### **Backend (ArticleShip)**
-- **Framework**: [FastAPI](https://fastapi.tiangolo.com/) (Python 3.10+)
-- **Application Server**: [Uvicorn](https://www.uvicorn.org/) / Gunicorn
-- **Database**: [MongoDB](https://www.mongodb.com/) via `pymongo`
-- **Authentication**: JWT (`python-jose`), Passwords (`bcrypt`), Email OTP (`smtplib`)
-- **LLM Integrations**: `google-genai` (Gemini 3 Flash), `openai` (OpenRouter, NVIDIA NIM, Qwen)
-- **Web Scraping & Search Grounding**: `duckduckgo-search` (`ddgs`), `trafilatura`, Tavily, Exa, Brave, SerpApi
-- **Payment Processing**: `stripe`
-
-### **Frontend**
-- **Framework**: [Next.js 14](https://nextjs.org/) (App Router, Server & Client Components)
-- **Library**: [React 18](https://react.dev/) with TypeScript
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Icons**: Lucide React
-- **State & Auth**: React Context API (`AuthContext`)
-
----
-
-## 📂 Repository Structure
-
-```
+```text
 Article.ai/
-├── ArticleShip/                   # FastAPI Backend & Worker Pipeline
-│   ├── main.py                    # API Server & Route Handlers
-│   ├── worker.py                  # Background Queue Processor
-│   ├── requirements.txt           # Python dependencies
-│   ├── .env.example               # Backend environment template
-│   ├── Idea.md                    # System architecture notes
-│   ├── services/                  # Pipeline Core Services
-│   │   ├── article_builder.py     # Article drafting & search context retrieval
-│   │   ├── article_store.py       # MongoDB CRUD for articles, jobs, & batches
-│   │   ├── auth.py                # Authentication, OTP, & JWT management
-│   │   ├── structure_builder.py   # Heading outline & image slot planner
-│   │   ├── keyword_engine.py      # SEO keyword discovery & intent analysis
-│   │   ├── image_fetcher.py       # Unsplash/Google/AI image retriever
-│   │   ├── content_mapper.py      # Markdown to JSON section mapper
-│   │   ├── final_formatter.py     # Metadata & SEO scoring pipeline
-│   │   ├── html_converter.py      # Pure HTML output generator
-│   │   ├── hybrid_html_converter.py# Styled hybrid HTML generator
-│   │   ├── llm_client.py          # Unified multi-LLM client with failover
-│   │   ├── payment_service.py     # Stripe checkout & webhook logic
-│   │   ├── email_service.py       # SMTP email sender (OTP & notifications)
-│   │   ├── privileges.py         # Admin and free-tier tier gating
-│   │   └── search/                # Web Search Grounding Providers
-│   │       ├── base.py            # Abstract search provider
-│   │       ├── engine.py          # Grounding search engine router
-│   │       └── providers.py       # Tavily, Exa, Brave, SerpApi integrations
-│   └── utils/                     # Helpers & constants
-├── Frontend/                      # Next.js 14 Web Application
-│   ├── app/                       # App Router Pages & API Proxies
-│   │   ├── page.tsx               # Landing page
-│   │   ├── generate/              # Single article creation wizard
-│   │   │   └── batch/             # Batch creation wizard & job details
-│   │   ├── articles/              # Saved & published articles feed
-│   │   ├── account/               # User profile, billing & API keys
-│   │   ├── login/ & signup/       # Auth pages
-│   │   └── api/                   # Next.js API route proxies to FastAPI
-│   ├── components/                # Modular React UI components
-│   ├── lib/                       # Utility functions & AuthContext
-│   ├── package.json               # Node.js dependencies & scripts
-│   └── .env.example               # Frontend environment template
-├── AGENTS.md                      # AI Development Guidelines
-└── README.md                      # Repository Documentation
+├── ArticleShip/           # FastAPI backend & async worker
+│   ├── main.py            # REST API endpoints
+│   ├── worker.py          # Background task consumer
+│   ├── services/          # Core generation & integration modules
+│   └── requirements.txt   # Python dependencies
+└── Frontend/              # Next.js web application
+    ├── app/               # App Router pages & API proxy routes
+    ├── components/        # Reusable UI components
+    └── package.json       # Node.js dependencies
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-
-- **Python**: `3.10` or higher
-- **Node.js**: `18.x` or higher (with `npm`)
-- **MongoDB**: A running MongoDB instance (Local or MongoDB Atlas)
-- **API Keys**: Google Gemini API key (Required), SMTP credentials (Optional for auth emails)
+- **Python 3.10+** & **Node.js 18+**
+- **MongoDB** instance
+- **Google Gemini API Key**
 
 ---
 
-### 1. Backend Setup (ArticleShip)
-
-1. Navigate to the `ArticleShip` directory:
-   ```bash
-   cd ArticleShip
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
-   # On Linux/macOS
-   python3 -m venv .venv
-   source .venv/bin/activate
-
-   # On Windows
-   python -m venv .venv
-   .venv\Scripts\activate
-   ```
-
-3. Install the dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   ```
-   *Edit `.env` and fill in `GEMINI_API_KEY`, `MONGODB_URI`, `JWT_SECRET_KEY`, and other required keys.*
-
-5. Launch the backend API server:
-   ```bash
-   python main.py
-   # Or using uvicorn directly:
-   # uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-   The backend server will run at `http://localhost:8000`. You can inspect interactive API documentation at `http://localhost:8000/docs`.
-
----
-
-### 2. Background Worker Setup
-
-The background worker handles asynchronous single job generations, scheduled runs, and batch queues.
-
-1. Ensure your `.venv` is activated and navigate to `ArticleShip`:
-   ```bash
-   cd ArticleShip
-   source .venv/bin/activate
-   ```
-
-2. Run the worker process:
-   ```bash
-   python worker.py
-   ```
-   *The worker polls MongoDB for `queued` or `scheduled` jobs and executes them through the pipeline.*
-
----
-
-### 3. Frontend Setup
-
-1. Navigate to the `Frontend` directory:
-   ```bash
-   cd Frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Configure local environment variables:
-   ```bash
-   cp .env.example .env.local
-   ```
-   Ensure `BACKEND_BASE_URL` points to your running FastAPI backend:
-   ```env
-   BACKEND_BASE_URL=http://127.0.0.1:8000
-   ```
-
-4. Start the development server:
-   ```bash
-   npm run dev
-   ```
-   The frontend application will be available at `http://localhost:3000`.
-
----
-
-## ⚙️ Environment Configuration
-
-### ArticleShip `.env` Reference
-
-| Category | Variable | Required | Description |
-| :--- | :--- | :---: | :--- |
-| **Core LLM** | `GEMINI_API_KEY` | **Yes** | Primary LLM key for Gemini 3 Flash. |
-| **Fallback LLMs** | `OPENROUTER_API_KEY` | No | Secondary LLM key for OpenRouter fallback. |
-| | `NVIDIA_API_KEY` | No | Fallback key for NVIDIA NIM (`moonshotai/kimi-k2.6`). |
-| | `QWEN_API_KEY` | No | Fallback key for Qwen (`qwen-plus`). |
-| **Database** | `MONGODB_URI` | **Yes** | MongoDB connection string. |
-| | `MONGODB_DB_NAME` | **Yes** | Database name (Default: `ArticleShip`). |
-| | `MONGODB_COLLECTION` | No | Articles collection name (Default: `articles`). |
-| | `MONGODB_JOBS_COLLECTION` | No | Jobs queue collection name (Default: `jobs`). |
-| | `MONGODB_BATCHES_COLLECTION` | No | Batches collection name (Default: `batches`). |
-| **Security** | `JWT_SECRET_KEY` | **Yes** | Secret key used for signing JWT access tokens. |
-| | `ALLOWED_ORIGINS` | No | Comma-separated CORS allowed origins. |
-| **SMTP / Email** | `SMTP_HOST` | No | SMTP host (e.g. `smtp.gmail.com`). |
-| | `SMTP_PORT` | No | SMTP port (e.g. `587`). |
-| | `SMTP_USER` | No | SMTP authentication email address. |
-| | `SMTP_PASSWORD` | No | SMTP password or app key. |
-| **Images** | `UNSPLASH_ACCESS_KEY` | No | Unsplash API key for stock photos. |
-| | `GOOGLE_SEARCH_API_KEY` | No | Google Custom Search API key. |
-| | `GOOGLE_SEARCH_CX` | No | Google Custom Search Engine ID. |
-| **Grounding** | `TAVILY_API_KEY` | No | Paid web search fallback API key. |
-| | `EXA_API_KEY` | No | Exa search API key. |
-| | `SERPAPI_API_KEY` | No | SerpApi search key. |
-| **Stripe** | `STRIPE_SECRET_KEY` | No | Stripe private secret key. |
-| | `STRIPE_WEBHOOK_SECRET` | No | Stripe endpoint secret for webhooks. |
-
----
-
-## 🔌 API Architecture & Endpoints
-
-### Authentication & User Management
-
-- `POST /api/v1/auth/signup`: Registers a new user and sends a 6-digit OTP verification code via email.
-- `POST /api/v1/auth/verify-otp`: Verifies the emailed code, marks the user verified, and sets refresh token cookies.
-- `POST /api/v1/auth/login`: Authenticates email/password, returning an access token and httpOnly refresh cookie.
-- `POST /api/v1/auth/refresh`: Exchanges valid refresh cookies for a new access token.
-- `POST /api/v1/auth/logout`: Clears the refresh token cookie.
-- `GET /api/v1/auth/me`: Returns current authenticated user profile.
-- `POST /api/v1/auth/impersonate`: Admin support endpoint to generate a bearer token for user account debugging.
-
-### Article Generation Pipeline
-
-- `POST /api/v1/keywords`: Analyzes a topic and returns clustered SEO keywords and search intent.
-- `POST /api/v1/structure`: Builds an H1-H4 section outline with target word count and image allocation.
-- `POST /api/v1/article`: Generates raw Markdown article content based on topic, keywords, and outline.
-- `POST /api/v1/mapper`: Parses raw Markdown into structured section JSON mappings.
-- `POST /api/v1/images`: Embeds stock or AI-generated images into designated section slots.
-- `POST /api/v1/generate_full_article`: Synchronously executes the complete end-to-end pipeline.
-- `POST /api/v1/generate_full_article_hybrid_html`: Queues a background generation job for hybrid CSS/HTML content.
-- `POST /api/v1/schedule_article`: Schedules a single article for generation at a future ISO timestamp (`scheduled_at`).
-
-### Job Queue & Batch Execution
-
-- `GET /api/v1/jobs`: Returns queued, processing, completed, or failed jobs for the current user.
-- `GET /api/v1/jobs/{job_id}`: Retrieves full status details for a specific background job.
-- `DELETE /api/v1/jobs/{job_id}`: Cancels and removes a pending or queued job.
-- `POST /api/v1/jobs/{job_id}/retry`: Resubmits a failed job for execution (up to 2 retries).
-- `POST /api/v1/batches`: Submits up to 20 topics for batch processing with optional time staggering.
-- `GET /api/v1/batches/{batch_id}`: Retrieves batch progress summary and associated sub-job statuses.
-
-### Article Store & CMS
-
-- `GET /api/v1/articles`: Lists published articles (public) or draft articles (owner/admin authenticated).
-- `GET /api/v1/articles/{article_id}`: Fetches a single article by MongoDB ID (owner/admin authenticated).
-- `POST /api/v1/articles`: Persists a generated article payload to MongoDB.
-- `PUT /api/v1/articles/{article_id}`: Updates an existing article draft payload.
-- `POST /api/v1/articles/{article_id}/publish`: Changes article status to `published` and assigns a web slug.
-- `POST /api/v1/articles/{article_id}/track-view`: Increments public view counter.
-- `DELETE /api/v1/articles/{article_id}`: Deletes an article from MongoDB.
-
-### Billing & Subscriptions
-
-- `POST /api/v1/billing/checkout`: Generates a Stripe Checkout URL for Pro or Agency plans.
-- `POST /api/v1/billing/portal`: Generates a Stripe Customer Portal URL for subscription management.
-- `POST /api/v1/billing/webhook`: Handles Stripe webhook notifications (checkout completed, subscription updated).
-
-### Search & Grounding
-
-- `GET /api/v1/search`: Queries web search results via DuckDuckGo with fallback provider support.
-
-### Testing & Diagnostics
-
-- `GET /api/v1/llm-test`: Tests isolated connectivity and latency for a specific LLM provider (`gemini`, `openrouter`, `nvidia`, `qwen`).
-- `POST /api/v1/article-context`: Returns live web retrieval context for a given topic.
-
----
-
-## 🤖 Multi-LLM Provider & Fallback Chain
-
-`services/llm_client.py` implements a resilient multi-provider abstraction:
-
-```
-[Primary: Gemini 3 Flash] 
-       │ (On 429/503/Transient failure)
-       ▼
-[Fallback 1: OpenRouter]
-       │ (On failure)
-       ▼
-[Fallback 2: NVIDIA NIM]
-       │ (On failure)
-       ▼
-[Fallback 3: Qwen / DashScope]
-```
-
-- **Transient Error Retries**: Automatic linear backoff retries for 429 (rate-limit) and 503 (overloaded) status codes.
-- **Automatic Fallback Routing**: If primary retries fail, requests automatically walk down configured providers without breaking running jobs.
-- **JSON Truncation Protection**: Automatically detects incomplete JSON strings caused by token limits and retries with doubled token headroom.
-
----
-
-## ⚡ Background Worker & Task Queue
-
-The `worker.py` module manages asynchronous execution:
-
-- **Atomic Job Claims**: Uses MongoDB `find_one_and_update` to claim `queued` jobs, preventing race conditions across multiple worker instances.
-- **Stale Processing Recovery**: If a worker process crashes mid-job, jobs stuck in `processing` longer than 20 minutes are reclaimed automatically (up to 2 times).
-- **Staggered & Scheduled Execution**: Evaluates `scheduled_at` timestamps against UTC time to trigger scheduled jobs accurately.
-- **Cost & Token Tracking**: Logs Gemini LLM calls and image retrieval metrics per job (`job_cost`).
-
----
-
-## 🛡️ Security & Authorization Model
-
-- **Resource Ownership Scoping**: Every job, batch, and draft article is tagged with `user_id`. Endpoint queries enforce strict ownership verification.
-- **Role Privileges**: Admin checks (`services/privileges.py`) override scoping for support and platform administration.
-- **Rate-Limiting Protection**: In-memory rate limiting prevents spam on email contact forms and OTP verification endpoints.
-- **Secure Cookie Transport**: Refresh tokens are served over `httpOnly`, `SameSite=None`, `Secure` cookies.
-
----
-
-## 🧪 Testing & Verification
-
-The project includes test scripts under `ArticleShip/` to verify critical paths:
+### 1. Backend & Worker Setup (`ArticleShip`)
 
 ```bash
 cd ArticleShip
+
+# Create virtual environment & install dependencies
+python3 -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 
-# Test single article generation logic
-python test_individual.py
+# Configure environment variables
+cp .env.example .env
 
-# Test OTP authentication flow
-python test_otp_auth.py
+# Run API server (http://localhost:8000)
+python main.py
 
-# Test job ownership and scoping security
-python test_article_ownership.py
-
-# Test payment service & Stripe integration
-python test_payment_service.py
-
-# Run comprehensive system fix tests
-python test_fixes.py
+# In a separate terminal, start the background worker:
+source .venv/bin/activate
+python worker.py
 ```
+
+---
+
+### 2. Frontend Setup (`Frontend`)
+
+```bash
+cd Frontend
+
+# Install dependencies & set environment
+npm install
+cp .env.example .env.local
+
+# Run development server (http://localhost:3000)
+npm run dev
+```
+
+---
+
+## ⚙️ Environment Variables Summary
+
+Key variables required in `ArticleShip/.env`:
+
+- `GEMINI_API_KEY`: Google Gemini API key (*Required*)
+- `MONGODB_URI`: MongoDB connection string (*Required*)
+- `JWT_SECRET_KEY`: Secret key for JWT tokens (*Required*)
+- `UNSPLASH_ACCESS_KEY` / `GOOGLE_SEARCH_API_KEY`: Image fetcher configuration
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET`: Billing integration
+
+Key variable required in `Frontend/.env.local`:
+
+- `BACKEND_BASE_URL`: Base URL of the FastAPI backend (`http://127.0.0.1:8000`)
 
 ---
 
 ## 📄 License
 
-This project is proprietary and confidential. All rights reserved.
+Proprietary and confidential. All rights reserved.
