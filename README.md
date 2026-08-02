@@ -28,6 +28,8 @@
 
 ## 🏗️ Pipeline Architecture
 
+<div align="center">
+
 ```mermaid
 graph TD
     A[User Input: Topic / Batch] --> B[Keyword Engine: RAG Search & Intent]
@@ -44,6 +46,8 @@ graph TD
         K --> B
     end
 ```
+
+</div>
 
 ---
 
@@ -62,6 +66,8 @@ graph TD
 
 `services/llm_client.py` provides a unified multi-provider client with automatic fallback routing and transient error handling:
 
+<div align="center">
+
 ```
 [Primary: Gemini 3 Flash]
        │
@@ -70,9 +76,11 @@ graph TD
        └── (If Primary Fails) ──> [Fallback 1: OpenRouter (openrouter/free)]
                                          │
                                          └── (If Fails) ──> [Fallback 2: NVIDIA NIM (Kimi k2.6)]
-                                                                   │
-                                                                   └── (If Fails) ──> [Fallback 3: Qwen (qwen-plus)]
+                                                                    │
+                                                                    └── (If Fails) ──> [Fallback 3: Qwen (qwen-plus)]
 ```
+
+</div>
 
 - **Resilient Fallback**: Automatically cascades down configured API keys to guarantee 99.9% pipeline uptime.
 - **JSON Truncation Auto-Correction**: Detects model token truncation and retries requests with doubled max token headroom.
